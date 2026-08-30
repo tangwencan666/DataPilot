@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     agent_max_intermediate_cells: int = 5_000
     agent_max_final_findings: int = 10
     agent_timeout_seconds: float = 60
+    agent_max_repairs_per_step: int = 1
+    agent_max_repairs_per_run: int = 3
+    agent_repair_timeout_seconds: float = 15
+    agent_repair_context_chars: int = 10_000
+    agent_max_observation_chars: int = 4_000
     allowed_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

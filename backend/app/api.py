@@ -52,7 +52,7 @@ def chart_service_dependency(session: Session = Depends(get_db), settings: Setti
 def agent_service_dependency(session:Session=Depends(get_db),settings:Settings=Depends(get_settings),provider:LLMProvider=Depends(get_llm_provider),runner:AnalysisProcessRunner=Depends(get_analysis_runner))->PlannerAgentService:
     query_service=NaturalLanguageSQLService(session,settings,provider);analysis_service=StructuredAnalysisService(session,settings,runner);chart_service=ChartService(session,settings)
     registry=ToolRegistry([SQLToolAdapter(query_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),AnalysisToolAdapter(analysis_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),ChartToolAdapter(chart_service)])
-    return PlannerAgentService(session,settings,provider,lambda:AgentRuntime(session,settings,registry,provider))
+    return PlannerAgentService(session,settings,provider,lambda context,columns:AgentRuntime(session,settings,registry,provider,context,columns))
 
 
 def profile_response(profile) -> DatasetProfileRead:

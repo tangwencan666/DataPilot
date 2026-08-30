@@ -1,6 +1,6 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 7 — Planner Agent Foundation**
+**Current Stage: Stage 8 — Agent Observation & Controlled Retry**
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -33,8 +33,10 @@ DataPilot 当前提供结构化数据集的上传、持久化、列表、详情�
 - SQL / Analysis / Chart Tool Registry 与顺序执行轨迹
 - AgentRun / AgentStepRun 历史、Artifact 引用与结构化 Final Synthesis
 - Dataset Detail AI Analyst、Plan UI、Step Details 与 Final Answer
+- Structured Tool Observation、Failure Classification 与 deterministic retry policy
+- Tool-specific Controlled Repair、单步一次 Retry 与持久化 Attempt Trace
 
-Stage 7 已提供一次性 Plan-then-Execute Planner Agent。它不是无限 ReAct loop、self-correcting Agent 或 Multi-Agent system，也没有 Report Agent。
+Stage 8 提供 bounded plan-and-execute data analyst agent with controlled observation and retry。它不是无限 ReAct、递归 Planner、Multi-Agent 或 Report Agent。
 
 ## 项目结构
 
@@ -136,7 +138,7 @@ Set-Location 'D:\毕业项目二\backend'
 alembic upgrade head
 ```
 
-应用不会使用 `create_all` 代替 migration。AgentRun / AgentStepRun migration 为 `20260830_0006`。
+应用不会使用 `create_all` 代替 migration。AgentStepAttempt migration 为 `20260830_0007`。
 
 ## 启动后端
 
@@ -279,6 +281,10 @@ Planner 只获得 Dataset 名称与规模、确定性截断的字段/画像摘�
 AgentPlan 是严格 tool-specific discriminated union。SQL step 只能提交自然语言子问题，不能提交 SQL；Analysis 和 Chart step 必须分别通过原有 DSL。Validator 检查最大 8 步、唯一 id、只引用先前步骤的依赖、DAG、字段存在性、基础语义类型及 code/path/network injection。Runtime 只从显式 Registry 获取 SQL/Analysis/Chart adapter，没有 shell、file、browser、HTTP 或 arbitrary Python tool，也没有 `unsafe` / `skip_validation` / `trusted_agent` 绕过入口。
 
 Runtime 只执行一次完整计划，不在 observation 后调用 LLM 重新规划。失败步骤的 dependents 标记为 `SKIPPED`，独立步骤仍可运行；有有效结果时为 `PARTIAL`，没有有效结果时为 `FAILED`。总 deadline 为 60 秒且只在步骤间启动检查，正在运行的 SQL/Analysis Tool 继续受各自 timeout 控制。中间结果最多保留 100 rows / 5000 cells，数据库只保存受限摘要和 artifact id，不保存巨大结果或 chain-of-thought。
+
+Stage 8 在每次 Tool execution 后产生受限 `ToolObservation`。程序先把错误分类为 validation、column/type/aggregation、SQL syntax/validation、empty、timeout、resource、LLM、not-found、unsupported、security 或 internal，再由确定性 policy 判断是否允许修复。默认每步最多一次、每 Run 最多三次；timeout、resource、LLM、not-found、internal 与 security rejection 不重试。
+
+Repair LLM 只能返回同 step id、同 Tool 的 discriminated-union 输入：SQL 只能修复自然语言子问题，Analysis 只能返回 `AnalysisPlan`，Chart 只能返回 `ChartSpec`。所有修复重新经过 Plan/column/semantic validation 和原 Stage 4/5/6 Tool 安全链。Attempt history 只保存 bounded input、observation、repair summary、错误与耗时，不保存 raw prompt、traceback、Dataset 或 chain-of-thought。完整设计见 `docs/agent-runtime.md`。
 
 Final Synthesizer 只接收原始问题、planner summary 和受限 step summaries，输出 `answer`、`key_findings`、`limitations`、`used_tools` 与 artifacts。日志记录 run/dataset/step/tool/status/duration，不记录 secrets 或完整 Dataset。未配置 LLM 时只有 Agent API 返回 `AGENT_LLM_NOT_CONFIGURED`，Stage 1–6 功能保持可用。
 

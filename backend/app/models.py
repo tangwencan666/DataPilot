@@ -178,3 +178,12 @@ class AgentStepRun(Base):
     artifact_type: Mapped[str|None]=mapped_column(String(32),nullable=True); artifact_id: Mapped[str|None]=mapped_column(String(36),nullable=True); execution_time_ms: Mapped[float|None]=mapped_column(Float,nullable=True)
     error_code: Mapped[str|None]=mapped_column(String(64),nullable=True); error_message: Mapped[str|None]=mapped_column(Text,nullable=True)
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False); updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),onupdate=func.now(),nullable=False)
+    attempt_count: Mapped[int]=mapped_column(Integer,nullable=False,default=0);repair_count: Mapped[int]=mapped_column(Integer,nullable=False,default=0);final_attempt_id: Mapped[str|None]=mapped_column(String(36),nullable=True)
+
+class AgentStepAttempt(Base):
+    __tablename__="agent_step_attempts"
+    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=lambda:str(uuid.uuid4()))
+    agent_step_run_id: Mapped[str]=mapped_column(String(36),ForeignKey("agent_step_runs.id",ondelete="CASCADE"),nullable=False,index=True)
+    attempt_number: Mapped[int]=mapped_column(Integer,nullable=False);attempt_type: Mapped[str]=mapped_column(String(16),nullable=False);status: Mapped[str]=mapped_column(String(16),nullable=False)
+    input_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);observation_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);repair_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict)
+    execution_time_ms: Mapped[float|None]=mapped_column(Float,nullable=True);error_code: Mapped[str|None]=mapped_column(String(64),nullable=True);error_message: Mapped[str|None]=mapped_column(Text,nullable=True);created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False)

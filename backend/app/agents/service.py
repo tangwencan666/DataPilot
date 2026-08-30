@@ -26,7 +26,7 @@ class PlannerAgentService:
             column_types={x["name"]:str(x.get("semantic_type") or x.get("physical_dtype") or "") for x in context_columns}
             if not column_types:column_types={x["name"]:str(x.get("dtype","")) for x in dataset.metadata_json.get("columns",[])}
             AgentPlanValidator(self.settings).validate(plan,column_types)
-            final=self.runtime_factory().execute(record,plan);self.session.refresh(record);return AgentRunResponse(run=run_read(record,self.runs.steps(record.id)),plan=plan,final=final)
+            final=self.runtime_factory(context.payload,column_types).execute(record,plan);self.session.refresh(record);return AgentRunResponse(run=run_read(record,self.runs.steps(record.id),self.runs),plan=plan,final=final)
         except LLMNotConfiguredError as exc:
             self._fail(record,"AGENT_LLM_NOT_CONFIGURED",exc.detail);raise AgentLLMNotConfiguredError(exc.detail) from exc
         except (LLMInvalidResponseError,LLMProviderError) as exc:
@@ -44,6 +44,7 @@ class PlannerAgentService:
         record=self.runs.get(dataset_id,run_id)
         if record is None:raise AgentNotFoundError("Agent Run 不存在")
         return record
-    def read(self,record:AgentRun)->AgentRunRead:return run_read(record,self.runs.steps(record.id))
-def run_read(record:AgentRun,steps)->AgentRunRead:
-    return AgentRunRead(id=record.id,dataset_id=record.dataset_id,user_question=record.user_question,goal=record.goal,status=record.status,planner_summary=record.planner_summary,step_count=record.step_count,completed_step_count=record.completed_step_count,final_summary_json=record.final_summary_json,error_code=record.error_code,error_message=record.error_message,context_metadata_json=record.context_metadata_json,created_at=record.created_at,updated_at=record.updated_at,steps=[AgentStepRead(id=x.id,step_id=x.step_id,sequence=x.sequence,tool_name=x.tool_name,purpose=x.purpose,status=x.status,input_summary_json=x.input_summary_json,output_summary_json=x.output_summary_json,artifact_type=x.artifact_type,artifact_id=x.artifact_id,execution_time_ms=x.execution_time_ms,error_code=x.error_code,error_message=x.error_message,created_at=x.created_at,updated_at=x.updated_at) for x in steps])
+    def read(self,record:AgentRun)->AgentRunRead:return run_read(record,self.runs.steps(record.id),self.runs)
+def run_read(record:AgentRun,steps,repo)->AgentRunRead:
+    from app.agents.schemas import AgentStepAttemptRead
+    return AgentRunRead(id=record.id,dataset_id=record.dataset_id,user_question=record.user_question,goal=record.goal,status=record.status,planner_summary=record.planner_summary,step_count=record.step_count,completed_step_count=record.completed_step_count,final_summary_json=record.final_summary_json,error_code=record.error_code,error_message=record.error_message,context_metadata_json=record.context_metadata_json,created_at=record.created_at,updated_at=record.updated_at,steps=[AgentStepRead(id=x.id,step_id=x.step_id,sequence=x.sequence,tool_name=x.tool_name,purpose=x.purpose,status=x.status,input_summary_json=x.input_summary_json,output_summary_json=x.output_summary_json,artifact_type=x.artifact_type,artifact_id=x.artifact_id,execution_time_ms=x.execution_time_ms,error_code=x.error_code,error_message=x.error_message,attempt_count=x.attempt_count,repair_count=x.repair_count,final_attempt_id=x.final_attempt_id,attempts=[AgentStepAttemptRead(id=a.id,attempt_number=a.attempt_number,attempt_type=a.attempt_type,status=a.status,input_summary_json=a.input_summary_json,observation_json=a.observation_json,repair_summary_json=a.repair_summary_json,execution_time_ms=a.execution_time_ms,error_code=a.error_code,error_message=a.error_message,created_at=a.created_at) for a in repo.attempts(x.id)],created_at=x.created_at,updated_at=x.updated_at) for x in steps])

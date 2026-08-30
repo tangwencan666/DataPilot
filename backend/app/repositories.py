@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AgentRun, AgentRunStatus, AgentStepRun, AgentStepStatus, AnalysisQuery, AnalysisRun, AnalysisRunStatus, Chart, ChartSourceType, ChartStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
+from app.models import AgentRun, AgentRunStatus, AgentStepAttempt, AgentStepRun, AgentStepStatus, AnalysisQuery, AnalysisRun, AnalysisRunStatus, Chart, ChartSourceType, ChartStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
 
 
 class DatasetRepository:
@@ -110,3 +110,6 @@ class AgentRunRepository:
     def create_step(self,run_id:str,step_id:str,sequence:int,tool:str,purpose:str,input_summary:dict)->AgentStepRun:
         item=AgentStepRun(agent_run_id=run_id,step_id=step_id,sequence=sequence,tool_name=tool,purpose=purpose,status=AgentStepStatus.PENDING,input_summary_json=input_summary,output_summary_json={});self.session.add(item);self.session.flush();return item
     def steps(self,run_id:str):return list(self.session.scalars(select(AgentStepRun).where(AgentStepRun.agent_run_id==run_id).order_by(AgentStepRun.sequence)))
+    def create_attempt(self,step_run_id:str,number:int,kind:str,input_summary:dict)->AgentStepAttempt:
+        item=AgentStepAttempt(agent_step_run_id=step_run_id,attempt_number=number,attempt_type=kind,status="RUNNING",input_summary_json=input_summary,observation_json={},repair_summary_json={});self.session.add(item);self.session.flush();return item
+    def attempts(self,step_run_id:str):return list(self.session.scalars(select(AgentStepAttempt).where(AgentStepAttempt.agent_step_run_id==step_run_id).order_by(AgentStepAttempt.attempt_number)))
