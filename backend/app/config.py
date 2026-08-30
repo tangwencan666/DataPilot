@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     query_max_result_cells: int = 100_000
     query_max_sql_length: int = 10_000
     max_question_length: int = 2_000
+    analysis_max_rows: int = 200_000
+    analysis_sample_rows: int = 50_000
+    analysis_max_result_rows: int = 1_000
+    analysis_max_result_cells: int = 100_000
+    analysis_max_operations: int = 10
+    analysis_max_columns: int = 50
+    analysis_max_groupby_columns: int = 3
+    analysis_max_metrics: int = 10
+    analysis_max_sort_columns: int = 3
+    analysis_timeout_seconds: float = 15
+    analysis_max_top_values: int = 100
     allowed_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

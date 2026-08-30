@@ -1,6 +1,6 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 4 — Natural Language to SQL Foundation**
+**Current Stage: Stage 5 — Python Analysis Tool Foundation**
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -23,8 +23,11 @@ DataPilot 当前提供结构化数据集的上传、持久化、列表、详情�
 - sqlglot AST Safe SQL Validation
 - DuckDB CSV/XLSX Query Execution
 - Analysis Query History
+- Structured Python Analysis Tool（Controlled Pandas Operations）
+- 强类型 Operation Pipeline、Analysis History 与 Execution Trace
+- GroupBy、Filtering、Sorting、Correlation、Value Counts、Descriptive Statistics、Time Series 与 Derived Columns
 
-当前已在 NL→SQL 生成环节支持 LLM，但尚未实现 Agent、Planner、LangGraph、Python Sandbox、Chart Agent、Report Agent 或多轮分析。
+当前已支持受控的结构化 Python/Pandas 分析，但这不是 arbitrary Python sandbox。尚未实现 Agent、Planner、LangGraph、LLM-generated Python、Charts 或 Reports。
 
 ## 项目结构
 
@@ -40,6 +43,7 @@ D:\毕业项目二
 │   │   ├── profiling
 │   │   ├── profile_service.py
 │   │   ├── query
+│   │   ├── analysis
 │   │   ├── repositories.py
 │   │   └── services.py
 │   ├── data\uploads
@@ -75,6 +79,17 @@ LLM_MODEL=
 QUERY_DEFAULT_LIMIT=100
 QUERY_MAX_LIMIT=1000
 QUERY_TIMEOUT_SECONDS=10
+ANALYSIS_MAX_ROWS=200000
+ANALYSIS_SAMPLE_ROWS=50000
+ANALYSIS_MAX_RESULT_ROWS=1000
+ANALYSIS_MAX_RESULT_CELLS=100000
+ANALYSIS_MAX_OPERATIONS=10
+ANALYSIS_MAX_COLUMNS=50
+ANALYSIS_MAX_GROUPBY_COLUMNS=3
+ANALYSIS_MAX_METRICS=10
+ANALYSIS_MAX_SORT_COLUMNS=3
+ANALYSIS_TIMEOUT_SECONDS=15
+ANALYSIS_MAX_TOP_VALUES=100
 UPLOAD_DIR=data/uploads
 ```
 
@@ -97,7 +112,7 @@ Set-Location 'D:\毕业项目二\backend'
 alembic upgrade head
 ```
 
-应用不会使用 `create_all` 代替 migration。AnalysisQuery migration 为 `20260830_0003`。
+应用不会使用 `create_all` 代替 migration。AnalysisRun migration 为 `20260830_0004`。
 
 ## 启动后端
 
@@ -133,6 +148,9 @@ npm run dev
 - `POST /api/v1/datasets/{dataset_id}/queries`：自然语言问题生成、验证并执行 SQL
 - `GET /api/v1/datasets/{dataset_id}/queries`：分页 Query History
 - `GET /api/v1/datasets/{dataset_id}/queries/{query_id}`：Query metadata
+- `POST /api/v1/datasets/{dataset_id}/analyses`：执行强类型结构化 AnalysisPlan
+- `GET /api/v1/datasets/{dataset_id}/analyses`：分页 Analysis History
+- `GET /api/v1/datasets/{dataset_id}/analyses/{analysis_id}`：Analysis metadata
 - `DELETE /api/v1/datasets/{dataset_id}`：删除元数据与磁盘文件
 - `GET /api/v1/health`：服务健康检查
 
@@ -188,12 +206,25 @@ npm run build
 
 如果 `LLM_API_KEY` 或 `LLM_MODEL` 未配置，旧功能仍正常启动和使用；只有 Query API 返回 `503 / LLM_NOT_CONFIGURED`。API Key 必须只保存在服务端环境变量中。
 
+## Controlled Python Analysis
+
+Stage 5 使用 Pydantic discriminated-union 定义的 Operation DSL，而不是 Python 源代码。API 没有 `code`、`expression`、`file_path` 或 URL 输入，也没有调用 `exec`、`eval`、`df.query(user_string)`、任意函数或 module import。
+
+支持的操作：`summarize`、`groupby_aggregate`、`filter_rows`、`sort_rows`、`correlation`、`value_counts`、`descriptive_statistics`、`time_series_aggregate`、`derive_column` 和 `top_n`。Filter、aggregation、frequency、sort direction 与 derived arithmetic 均为 allowlist Enum，可按顺序组成有限 pipeline。
+
+父进程负责 Dataset lookup、路径边界、计划验证、超时和 AnalysisRun 持久化。纯 worker 只接收受管路径、文件类型、已验证 plan 和数值限制，通过 Windows-compatible `multiprocessing.get_context("spawn")` 启动。超时会先 `terminate()`，必要时 `kill()`，数据库对象、FastAPI Request、Session 和 LLM Provider 不进入子进程。
+
+大数据策略不会偷偷产生错误全量结论：仅 descriptive/correlation 允许确定性 sample；涉及 SUM、GroupBy、Filter 等全量操作会返回 `ANALYSIS_DATASET_TOO_LARGE`。超大 XLSX 因读取前无法低成本抽样而直接拒绝。结果行数和 cells 会安全截断，并明确 `truncated`。
+
+当前保护是结构化能力限制、进程隔离和应用级资源上限，不是完整 OS/container memory sandbox。生产级 arbitrary Python 必须放入独立 container 或 microVM，并配置 OS resource quotas。
+
 ## 当前限制
 
 - 同步解析，状态模型已为未来异步处理预留 `UPLOADING / PROCESSING / READY / FAILED`
 - Profiling 当前同步执行，Profile 状态已预留 `PENDING / RUNNING / READY / FAILED`
 - NL→SQL 当前为单次生成，没有自动重试、Agent loop 或多轮会话
+- Analysis worker 当前没有 OS-level memory quota，XLSX sampling 能力有限
 - XLSX 固定使用第一个 worksheet
 - CSV 当前按 UTF-8 解析
 - 数据文件保存在本机磁盘，尚无对象存储
-- 下一阶段规划为 **Stage 5 — Python Analysis Tool Foundation**
+- 下一阶段规划为 **Stage 6 — Chart & Visualization Tool**

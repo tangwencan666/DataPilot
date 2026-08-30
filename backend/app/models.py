@@ -33,6 +33,15 @@ class QueryStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
+class AnalysisRunStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    VALIDATING = "VALIDATING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    TIMED_OUT = "TIMED_OUT"
+
+
 class Dataset(Base):
     __tablename__ = "datasets"
 
@@ -83,6 +92,24 @@ class AnalysisQuery(Base):
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[QueryStatus] = mapped_column(Enum(QueryStatus, name="query_status", native_enum=False), nullable=False, default=QueryStatus.PENDING)
     row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class AnalysisRun(Base):
+    __tablename__ = "analysis_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id: Mapped[str] = mapped_column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[AnalysisRunStatus] = mapped_column(Enum(AnalysisRunStatus, name="analysis_run_status", native_enum=False), nullable=False, default=AnalysisRunStatus.PENDING)
+    request_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    result_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    operation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

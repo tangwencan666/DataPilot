@@ -18,8 +18,10 @@ from app.query.validator import ValidatedSQL
 
 
 def json_value(value: Any) -> Any:
-    if value is None or value is pd.NA:
+    if value is None or value is pd.NA or value is pd.NaT:
         return None
+    if isinstance(value, (pd.Timedelta, np.timedelta64)):
+        return str(pd.Timedelta(value))
     if isinstance(value, (datetime, date, pd.Timestamp, np.datetime64)):
         return pd.Timestamp(value).isoformat()
     if isinstance(value, Decimal):

@@ -10,6 +10,9 @@ from app.services import DatasetService
 from app.query.provider import LLMProvider, OpenAICompatibleProvider
 from app.query.schemas import AnalysisQueryRead, QueryCreate, QueryListResponse, QueryResponse
 from app.query.service import NaturalLanguageSQLService, query_read
+from app.analysis.schemas import AnalysisListResponse, AnalysisPlan, AnalysisResponse, AnalysisRunRead
+from app.analysis.service import StructuredAnalysisService, run_read
+from app.analysis.process import AnalysisProcessRunner
 
 router = APIRouter()
 
@@ -28,6 +31,14 @@ def get_llm_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
 
 def query_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), provider: LLMProvider = Depends(get_llm_provider)) -> NaturalLanguageSQLService:
     return NaturalLanguageSQLService(session, settings, provider)
+
+
+def get_analysis_runner(settings: Settings = Depends(get_settings)) -> AnalysisProcessRunner:
+    return AnalysisProcessRunner(settings)
+
+
+def analysis_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), runner: AnalysisProcessRunner = Depends(get_analysis_runner)) -> StructuredAnalysisService:
+    return StructuredAnalysisService(session, settings, runner)
 
 
 def profile_response(profile) -> DatasetProfileRead:
@@ -94,6 +105,21 @@ def list_dataset_queries(dataset_id: str, page: int = Query(1, ge=1), page_size:
 @router.get("/datasets/{dataset_id}/queries/{query_id}", response_model=AnalysisQueryRead)
 def get_dataset_query(dataset_id: str, query_id: str, service: NaturalLanguageSQLService = Depends(query_service_dependency)) -> AnalysisQueryRead:
     return query_read(service.get(dataset_id, query_id))
+
+
+@router.post("/datasets/{dataset_id}/analyses", response_model=AnalysisResponse)
+def run_dataset_analysis(dataset_id: str, plan: AnalysisPlan, service: StructuredAnalysisService = Depends(analysis_service_dependency)) -> AnalysisResponse:
+    return service.execute(dataset_id, plan)
+
+
+@router.get("/datasets/{dataset_id}/analyses", response_model=AnalysisListResponse)
+def list_dataset_analyses(dataset_id: str, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), service: StructuredAnalysisService = Depends(analysis_service_dependency)) -> AnalysisListResponse:
+    items,total=service.list(dataset_id,page,page_size); return AnalysisListResponse(items=[run_read(item) for item in items],total=total,page=page,page_size=page_size)
+
+
+@router.get("/datasets/{dataset_id}/analyses/{analysis_id}", response_model=AnalysisRunRead)
+def get_dataset_analysis(dataset_id: str, analysis_id: str, service: StructuredAnalysisService = Depends(analysis_service_dependency)) -> AnalysisRunRead:
+    return run_read(service.get(dataset_id,analysis_id))
 
 
 @router.delete("/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
