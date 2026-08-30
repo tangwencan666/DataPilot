@@ -24,7 +24,12 @@ def _records(frame: pd.DataFrame) -> list[dict[str, Any]]:
 
 def _result(frame: pd.DataFrame, preview_limit: int, metadata: dict[str, Any]) -> ParsedDataset:
     columns = [
-        {"name": str(column), "dtype": str(frame[column].dtype), "missing": int(frame[column].isna().sum()), "unique": int(frame[column].nunique(dropna=True))}
+        {
+            "name": str(column),
+            "dtype": str(frame[column].dtype),
+            "missing": int(frame[column].isna().sum()),
+            "unique": int(frame[column].nunique(dropna=True)),
+        }
         for column in frame.columns
     ]
     return ParsedDataset(len(frame), len(frame.columns), columns, _records(frame.head(preview_limit)), {**metadata, "columns": columns})

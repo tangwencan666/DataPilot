@@ -3,6 +3,7 @@
 Revision ID: 20260830_0001
 Revises:
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -25,7 +26,9 @@ def upgrade() -> None:
         sa.Column("file_size", sa.BigInteger(), nullable=False),
         sa.Column("row_count", sa.Integer(), nullable=False),
         sa.Column("column_count", sa.Integer(), nullable=False),
-        sa.Column("status", sa.Enum("UPLOADING", "PROCESSING", "READY", "FAILED", name="dataset_status", native_enum=False), nullable=False),
+        sa.Column(
+            "status", sa.Enum("UPLOADING", "PROCESSING", "READY", "FAILED", name="dataset_status", native_enum=False), nullable=False
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=False),

@@ -64,7 +64,9 @@ class DuckDBQueryExecutor:
             elapsed = round((time.perf_counter() - started) * 1000, 3)
             truncated = len(raw_rows) > effective_limit
             rows = [[json_value(value) for value in row] for row in raw_rows[:effective_limit]]
-            return QueryResult(columns=columns, rows=rows, row_count=len(rows), truncated=truncated, execution_time_ms=elapsed, sql=validated.sql)
+            return QueryResult(
+                columns=columns, rows=rows, row_count=len(rows), truncated=truncated, execution_time_ms=elapsed, sql=validated.sql
+            )
         except QueryTimeoutError:
             raise
         except Exception as exc:

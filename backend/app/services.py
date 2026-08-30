@@ -54,9 +54,15 @@ class DatasetService:
             raise InvalidFileError("无效文件路径")
         dataset = Dataset(
             owner_user_id=self.owner_user_id,
-            name=Path(original_filename).stem[:255], original_filename=original_filename[:255], stored_filename=stored_filename,
-            file_type=file_type, file_size=len(content), row_count=parsed.row_count, column_count=parsed.column_count,
-            status=DatasetStatus.READY, metadata_json=parsed.metadata,
+            name=Path(original_filename).stem[:255],
+            original_filename=original_filename[:255],
+            stored_filename=stored_filename,
+            file_type=file_type,
+            file_size=len(content),
+            row_count=parsed.row_count,
+            column_count=parsed.column_count,
+            status=DatasetStatus.READY,
+            metadata_json=parsed.metadata,
         )
         try:
             destination.write_bytes(content)

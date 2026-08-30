@@ -91,9 +91,21 @@ class TopNOperation(BaseModel):
     direction: Literal["asc", "desc"] = "desc"
 
 
-AnalysisOperation = Annotated[Union[SummarizeOperation, GroupByOperation, FilterOperation, SortOperation,
-    CorrelationOperation, ValueCountsOperation, DescriptiveOperation, TimeSeriesOperation,
-    DeriveColumnOperation, TopNOperation], Field(discriminator="type")]
+AnalysisOperation = Annotated[
+    Union[
+        SummarizeOperation,
+        GroupByOperation,
+        FilterOperation,
+        SortOperation,
+        CorrelationOperation,
+        ValueCountsOperation,
+        DescriptiveOperation,
+        TimeSeriesOperation,
+        DeriveColumnOperation,
+        TopNOperation,
+    ],
+    Field(discriminator="type"),
+]
 
 
 class AnalysisPlan(BaseModel):
@@ -101,18 +113,38 @@ class AnalysisPlan(BaseModel):
 
 
 class OperationTrace(BaseModel):
-    step: int; type: str; duration_ms: float; input_rows: int; output_rows: int
+    step: int
+    type: str
+    duration_ms: float
+    input_rows: int
+    output_rows: int
 
 
 class AnalysisResult(BaseModel):
-    columns: list[str]; rows: list[list[Any]]; row_count: int; truncated: bool; execution_time_ms: float
-    operations_executed: list[OperationTrace]; warnings: list[str]; metadata: dict[str, Any]
+    columns: list[str]
+    rows: list[list[Any]]
+    row_count: int
+    truncated: bool
+    execution_time_ms: float
+    operations_executed: list[OperationTrace]
+    warnings: list[str]
+    metadata: dict[str, Any]
 
 
 class AnalysisRunRead(BaseModel):
-    id: str; dataset_id: str; status: AnalysisRunStatus; request_json: dict[str, Any]; result_summary_json: dict[str, Any]
-    operation_count: int; input_row_count: int | None; output_row_count: int | None; execution_time_ms: float | None
-    error_code: str | None; error_message: str | None; created_at: datetime; updated_at: datetime
+    id: str
+    dataset_id: str
+    status: AnalysisRunStatus
+    request_json: dict[str, Any]
+    result_summary_json: dict[str, Any]
+    operation_count: int
+    input_row_count: int | None
+    output_row_count: int | None
+    execution_time_ms: float | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class AnalysisResponse(BaseModel):
@@ -121,4 +153,7 @@ class AnalysisResponse(BaseModel):
 
 
 class AnalysisListResponse(BaseModel):
-    items: list[AnalysisRunRead]; total: int; page: int; page_size: int
+    items: list[AnalysisRunRead]
+    total: int
+    page: int
+    page_size: int

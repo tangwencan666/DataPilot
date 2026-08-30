@@ -54,12 +54,30 @@ class ChartSourceType(str, enum.Enum):
     QUERY = "QUERY"
     ANALYSIS = "ANALYSIS"
 
+
 class AgentRunStatus(str, enum.Enum):
-    PENDING="PENDING"; PLANNING="PLANNING"; VALIDATING="VALIDATING"; RUNNING="RUNNING"; SUCCEEDED="SUCCEEDED"; FAILED="FAILED"; PARTIAL="PARTIAL"
+    PENDING = "PENDING"
+    PLANNING = "PLANNING"
+    VALIDATING = "VALIDATING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    PARTIAL = "PARTIAL"
+
 
 class AgentStepStatus(str, enum.Enum):
-    PENDING="PENDING"; RUNNING="RUNNING"; SUCCEEDED="SUCCEEDED"; FAILED="FAILED"; SKIPPED="SKIPPED"
-class ReportStatus(str,enum.Enum):PENDING="PENDING";GENERATING="GENERATING";READY="READY";FAILED="FAILED"
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+
+class ReportStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    GENERATING = "GENERATING"
+    READY = "READY"
+    FAILED = "FAILED"
 
 
 class User(Base):
@@ -98,7 +116,9 @@ class DatasetProfile(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     dataset_id: Mapped[str] = mapped_column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, unique=True)
-    status: Mapped[ProfileStatus] = mapped_column(Enum(ProfileStatus, name="profile_status", native_enum=False), nullable=False, default=ProfileStatus.PENDING)
+    status: Mapped[ProfileStatus] = mapped_column(
+        Enum(ProfileStatus, name="profile_status", native_enum=False), nullable=False, default=ProfileStatus.PENDING
+    )
     profile_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     column_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -122,7 +142,9 @@ class AnalysisQuery(Base):
     question: Mapped[str] = mapped_column(Text, nullable=False)
     generated_sql: Mapped[str | None] = mapped_column(Text, nullable=True)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[QueryStatus] = mapped_column(Enum(QueryStatus, name="query_status", native_enum=False), nullable=False, default=QueryStatus.PENDING)
+    status: Mapped[QueryStatus] = mapped_column(
+        Enum(QueryStatus, name="query_status", native_enum=False), nullable=False, default=QueryStatus.PENDING
+    )
     row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -136,7 +158,9 @@ class AnalysisRun(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     dataset_id: Mapped[str] = mapped_column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
-    status: Mapped[AnalysisRunStatus] = mapped_column(Enum(AnalysisRunStatus, name="analysis_run_status", native_enum=False), nullable=False, default=AnalysisRunStatus.PENDING)
+    status: Mapped[AnalysisRunStatus] = mapped_column(
+        Enum(AnalysisRunStatus, name="analysis_run_status", native_enum=False), nullable=False, default=AnalysisRunStatus.PENDING
+    )
     request_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
     result_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
     operation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -160,7 +184,9 @@ class Chart(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     spec_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
     option_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
-    status: Mapped[ChartStatus] = mapped_column(Enum(ChartStatus, name="chart_status", native_enum=False), nullable=False, default=ChartStatus.PENDING)
+    status: Mapped[ChartStatus] = mapped_column(
+        Enum(ChartStatus, name="chart_status", native_enum=False), nullable=False, default=ChartStatus.PENDING
+    )
     source_row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rendered_point_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sampled: Mapped[bool] = mapped_column(nullable=False, default=False)
@@ -169,37 +195,86 @@ class Chart(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+
 class AgentRun(Base):
-    __tablename__="agent_runs"
-    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=lambda:str(uuid.uuid4()))
-    dataset_id: Mapped[str]=mapped_column(String(36),ForeignKey("datasets.id",ondelete="CASCADE"),nullable=False,index=True)
-    user_question: Mapped[str]=mapped_column(Text,nullable=False); goal: Mapped[str|None]=mapped_column(Text,nullable=True)
-    status: Mapped[AgentRunStatus]=mapped_column(Enum(AgentRunStatus,name="agent_run_status",native_enum=False),nullable=False,default=AgentRunStatus.PENDING)
-    planner_summary: Mapped[str|None]=mapped_column(Text,nullable=True); step_count: Mapped[int]=mapped_column(Integer,nullable=False,default=0); completed_step_count: Mapped[int]=mapped_column(Integer,nullable=False,default=0)
-    final_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict)
-    error_code: Mapped[str|None]=mapped_column(String(64),nullable=True); error_message: Mapped[str|None]=mapped_column(Text,nullable=True)
-    context_metadata_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict)
-    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False); updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),onupdate=func.now(),nullable=False)
+    __tablename__ = "agent_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id: Mapped[str] = mapped_column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_question: Mapped[str] = mapped_column(Text, nullable=False)
+    goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[AgentRunStatus] = mapped_column(
+        Enum(AgentRunStatus, name="agent_run_status", native_enum=False), nullable=False, default=AgentRunStatus.PENDING
+    )
+    planner_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    step_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completed_step_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    final_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context_metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
 
 class AgentStepRun(Base):
-    __tablename__="agent_step_runs"
-    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=lambda:str(uuid.uuid4()))
-    agent_run_id: Mapped[str]=mapped_column(String(36),ForeignKey("agent_runs.id",ondelete="CASCADE"),nullable=False,index=True)
-    step_id: Mapped[str]=mapped_column(String(64),nullable=False); sequence: Mapped[int]=mapped_column(Integer,nullable=False); tool_name: Mapped[str]=mapped_column(String(16),nullable=False); purpose: Mapped[str]=mapped_column(Text,nullable=False)
-    status: Mapped[AgentStepStatus]=mapped_column(Enum(AgentStepStatus,name="agent_step_status",native_enum=False),nullable=False,default=AgentStepStatus.PENDING)
-    input_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict); output_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict)
-    artifact_type: Mapped[str|None]=mapped_column(String(32),nullable=True); artifact_id: Mapped[str|None]=mapped_column(String(36),nullable=True); execution_time_ms: Mapped[float|None]=mapped_column(Float,nullable=True)
-    error_code: Mapped[str|None]=mapped_column(String(64),nullable=True); error_message: Mapped[str|None]=mapped_column(Text,nullable=True)
-    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False); updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),onupdate=func.now(),nullable=False)
-    attempt_count: Mapped[int]=mapped_column(Integer,nullable=False,default=0);repair_count: Mapped[int]=mapped_column(Integer,nullable=False,default=0);final_attempt_id: Mapped[str|None]=mapped_column(String(36),nullable=True)
+    __tablename__ = "agent_step_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    step_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(16), nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[AgentStepStatus] = mapped_column(
+        Enum(AgentStepStatus, name="agent_step_status", native_enum=False), nullable=False, default=AgentStepStatus.PENDING
+    )
+    input_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    output_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    artifact_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    artifact_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    repair_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    final_attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
 
 class AgentStepAttempt(Base):
-    __tablename__="agent_step_attempts"
-    id: Mapped[str]=mapped_column(String(36),primary_key=True,default=lambda:str(uuid.uuid4()))
-    agent_step_run_id: Mapped[str]=mapped_column(String(36),ForeignKey("agent_step_runs.id",ondelete="CASCADE"),nullable=False,index=True)
-    attempt_number: Mapped[int]=mapped_column(Integer,nullable=False);attempt_type: Mapped[str]=mapped_column(String(16),nullable=False);status: Mapped[str]=mapped_column(String(16),nullable=False)
-    input_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);observation_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);repair_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict)
-    execution_time_ms: Mapped[float|None]=mapped_column(Float,nullable=True);error_code: Mapped[str|None]=mapped_column(String(64),nullable=True);error_message: Mapped[str|None]=mapped_column(Text,nullable=True);created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False)
+    __tablename__ = "agent_step_attempts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_step_run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("agent_step_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    observation_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    repair_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class Report(Base):
-    __tablename__="reports"
-    id:Mapped[str]=mapped_column(String(36),primary_key=True,default=lambda:str(uuid.uuid4()));dataset_id:Mapped[str]=mapped_column(String(36),ForeignKey("datasets.id",ondelete="CASCADE"),nullable=False,index=True);agent_run_id:Mapped[str]=mapped_column(String(36),ForeignKey("agent_runs.id",ondelete="CASCADE"),nullable=False,index=True);title:Mapped[str]=mapped_column(String(200),nullable=False);status:Mapped[ReportStatus]=mapped_column(Enum(ReportStatus,name="report_status",native_enum=False),nullable=False,default=ReportStatus.PENDING);executive_summary:Mapped[str]=mapped_column(Text,nullable=False,default="");report_json:Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);insight_count:Mapped[int]=mapped_column(Integer,nullable=False,default=0);artifact_count:Mapped[int]=mapped_column(Integer,nullable=False,default=0);evidence_truncated:Mapped[bool]=mapped_column(nullable=False,default=False);generation_time_ms:Mapped[float|None]=mapped_column(Float);error_code:Mapped[str|None]=mapped_column(String(64));error_message:Mapped[str|None]=mapped_column(Text);created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False);updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),onupdate=func.now(),nullable=False)
+    __tablename__ = "reports"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id: Mapped[str] = mapped_column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
+    agent_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[ReportStatus] = mapped_column(
+        Enum(ReportStatus, name="report_status", native_enum=False), nullable=False, default=ReportStatus.PENDING
+    )
+    executive_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    report_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    insight_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    artifact_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    evidence_truncated: Mapped[bool] = mapped_column(nullable=False, default=False)
+    generation_time_ms: Mapped[float | None] = mapped_column(Float)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

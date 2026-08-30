@@ -5,7 +5,7 @@ class DatasetSchemaContextBuilder:
     table_name = "dataset"
 
     def build(self, dataset: Dataset, profile: DatasetProfile | None) -> dict:
-        profile_columns = (profile.profile_json.get("columns", []) if profile and profile.profile_json else [])
+        profile_columns = profile.profile_json.get("columns", []) if profile and profile.profile_json else []
         fallback = dataset.metadata_json.get("columns", [])
         columns = []
         for item in (profile_columns or fallback)[:200]:

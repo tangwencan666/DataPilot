@@ -3,6 +3,7 @@
 Revision ID: 20260830_0003
 Revises: 20260830_0002
 """
+
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
@@ -21,7 +22,11 @@ def upgrade() -> None:
         sa.Column("question", sa.Text(), nullable=False),
         sa.Column("generated_sql", sa.Text(), nullable=True),
         sa.Column("explanation", sa.Text(), nullable=True),
-        sa.Column("status", sa.Enum("PENDING", "GENERATING", "VALIDATING", "EXECUTING", "SUCCEEDED", "FAILED", name="query_status", native_enum=False), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("PENDING", "GENERATING", "VALIDATING", "EXECUTING", "SUCCEEDED", "FAILED", name="query_status", native_enum=False),
+            nullable=False,
+        ),
         sa.Column("row_count", sa.Integer(), nullable=True),
         sa.Column("execution_time_ms", sa.Float(), nullable=True),
         sa.Column("error_code", sa.String(64), nullable=True),

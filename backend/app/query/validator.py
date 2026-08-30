@@ -7,12 +7,24 @@ from app.config import Settings
 from app.exceptions import SQLValidationError
 
 DANGEROUS_FUNCTIONS = {
-    "read_csv", "read_csv_auto", "read_parquet", "read_json", "read_json_auto", "read_text", "glob",
-    "sqlite_scan", "sqlite_attach", "postgres_scan", "postgres_attach", "http_get", "httpfs",
+    "read_csv",
+    "read_csv_auto",
+    "read_parquet",
+    "read_json",
+    "read_json_auto",
+    "read_text",
+    "glob",
+    "sqlite_scan",
+    "sqlite_attach",
+    "postgres_scan",
+    "postgres_attach",
+    "http_get",
+    "httpfs",
 }
 SYSTEM_NAMES = {"information_schema", "sqlite_master", "pg_catalog", "duckdb_tables", "duckdb_columns"}
 FORBIDDEN_NODES = tuple(
-    node for name in ("Insert", "Update", "Delete", "Drop", "Alter", "Create", "Copy", "Attach", "Detach", "Pragma", "Command", "Merge")
+    node
+    for name in ("Insert", "Update", "Delete", "Drop", "Alter", "Create", "Copy", "Attach", "Detach", "Pragma", "Command", "Merge")
     if (node := getattr(exp, name, None)) is not None
 )
 
@@ -62,7 +74,9 @@ class SQLValidator:
             function_name = function.sql_name().lower()
             if isinstance(function, exp.Anonymous):
                 function_name = function.name.lower()
-            if function_name in DANGEROUS_FUNCTIONS or any(token in function_name for token in ("scan", "attach", "read_csv", "read_parquet", "read_json", "http")):
+            if function_name in DANGEROUS_FUNCTIONS or any(
+                token in function_name for token in ("scan", "attach", "read_csv", "read_parquet", "read_json", "http")
+            ):
                 raise SQLValidationError(f"Function '{function_name}' is prohibited.")
         sql_lower = statement.sql(dialect="duckdb").lower()
         if any(name in sql_lower for name in SYSTEM_NAMES):

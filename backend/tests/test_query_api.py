@@ -12,7 +12,7 @@ class FakeProvider:
 
     def generate_sql(self, question: str, schema_context: dict) -> SQLGenerationResult:
         assert schema_context["table_name"] == "dataset"
-        return SQLGenerationResult(sql=self.sql, explanation="按产品汇总金额。", confidence=.9, assumptions=[])
+        return SQLGenerationResult(sql=self.sql, explanation="按产品汇总金额。", confidence=0.9, assumptions=[])
 
 
 class InvalidProvider:
@@ -29,21 +29,26 @@ def test_success_and_history_persistence(client: TestClient) -> None:
     dataset = upload(client)
     response = client.post(f"/api/v1/datasets/{dataset['id']}/queries", json={"question": "哪个产品金额最高？"})
     assert response.status_code == 200
-    body = response.json(); assert body["result"]["rows"][0] == ["B", 20.0]
-    assert body["query"]["status"] == "SUCCEEDED"; assert "SELECT" in body["query"]["generated_sql"]
+    body = response.json()
+    assert body["result"]["rows"][0] == ["B", 20.0]
+    assert body["query"]["status"] == "SUCCEEDED"
+    assert "SELECT" in body["query"]["generated_sql"]
     listing = client.get(f"/api/v1/datasets/{dataset['id']}/queries?page=1&page_size=1")
     detail = client.get(f"/api/v1/datasets/{dataset['id']}/queries/{body['query']['id']}")
-    assert listing.json()["total"] == 1; assert detail.status_code == 200
+    assert listing.json()["total"] == 1
+    assert detail.status_code == 200
 
 
 def test_dataset_question_and_configuration_errors(client: TestClient) -> None:
     missing = client.post("/api/v1/datasets/missing/queries", json={"question": "test"})
-    assert missing.status_code == 404; assert missing.json()["code"] == "DATASET_NOT_FOUND"
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "DATASET_NOT_FOUND"
     dataset = upload(client)
     assert client.post(f"/api/v1/datasets/{dataset['id']}/queries", json={"question": "  "}).status_code == 422
     assert client.post(f"/api/v1/datasets/{dataset['id']}/queries", json={"question": "x" * 2001}).status_code == 400
     response = client.post(f"/api/v1/datasets/{dataset['id']}/queries", json={"question": "total?"})
-    assert response.status_code == 503; assert response.json()["code"] == "LLM_NOT_CONFIGURED"
+    assert response.status_code == 503
+    assert response.json()["code"] == "LLM_NOT_CONFIGURED"
 
 
 def test_invalid_llm_dangerous_sql_and_execution_failure_are_recorded(client: TestClient) -> None:
@@ -58,4 +63,5 @@ def test_invalid_llm_dangerous_sql_and_execution_failure_are_recorded(client: Te
         assert response.status_code in (422, 502)
         assert response.json()["code"] == expected
     history = client.get(f"/api/v1/datasets/{dataset['id']}/queries?page=1&page_size=2").json()
-    assert history["total"] == 3; assert all(item["status"] == "FAILED" for item in history["items"])
+    assert history["total"] == 3
+    assert all(item["status"] == "FAILED" for item in history["items"])

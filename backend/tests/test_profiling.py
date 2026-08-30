@@ -36,7 +36,7 @@ def test_duplicate_rows() -> None:
 
 def test_categorical_top_values_and_high_cardinality() -> None:
     values = [f"C{i}" for i in range(90)] + [f"C{i}" for i in range(10)]
-    result = profiler(profile_high_cardinality_min=50, profile_high_cardinality_ratio=.8).profile(pd.DataFrame({"category": values}))
+    result = profiler(profile_high_cardinality_min=50, profile_high_cardinality_ratio=0.8).profile(pd.DataFrame({"category": values}))
     categorical = column(result, "category").categorical
     assert categorical is not None
     assert categorical.top_values[0].count == 2
@@ -52,18 +52,22 @@ def test_constant_and_all_missing_columns() -> None:
 
 
 def test_correlation_is_filtered_and_sorted() -> None:
-    result = profiler(profile_correlation_threshold=.5).profile(pd.DataFrame({"a": range(20), "b": [v * 2 for v in range(20)], "c": [1, 0] * 10}))
+    result = profiler(profile_correlation_threshold=0.5).profile(
+        pd.DataFrame({"a": range(20), "b": [v * 2 for v in range(20)], "c": [1, 0] * 10})
+    )
     assert result.correlations[0].column_a == "a"
     assert result.correlations[0].column_b == "b"
     assert result.correlations[0].correlation == 1.0
 
 
 def test_datetime_boolean_and_text_profiles() -> None:
-    frame = pd.DataFrame({
-        "when": pd.to_datetime(["2024-01-01", "2024-01-03", None]),
-        "enabled": pd.Series([True, False, None], dtype="boolean"),
-        "notes": ["a long free-form sentence " * 3, "", "another long free-form sentence " * 3],
-    })
+    frame = pd.DataFrame(
+        {
+            "when": pd.to_datetime(["2024-01-01", "2024-01-03", None]),
+            "enabled": pd.Series([True, False, None], dtype="boolean"),
+            "notes": ["a long free-form sentence " * 3, "", "another long free-form sentence " * 3],
+        }
+    )
     result = profiler().profile(frame)
     assert column(result, "when").datetime.range_days == 2
     assert column(result, "enabled").boolean.true_count == 1

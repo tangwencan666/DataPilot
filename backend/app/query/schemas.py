@@ -36,9 +36,18 @@ class QueryResult(BaseModel):
 
 
 class AnalysisQueryRead(BaseModel):
-    id: str; dataset_id: str; question: str; generated_sql: str | None; explanation: str | None
-    status: QueryStatus; row_count: int | None; execution_time_ms: float | None
-    error_code: str | None; error_message: str | None; created_at: datetime; updated_at: datetime
+    id: str
+    dataset_id: str
+    question: str
+    generated_sql: str | None
+    explanation: str | None
+    status: QueryStatus
+    row_count: int | None
+    execution_time_ms: float | None
+    error_code: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class QueryResponse(BaseModel):
@@ -48,4 +57,7 @@ class QueryResponse(BaseModel):
 
 
 class QueryListResponse(BaseModel):
-    items: list[AnalysisQueryRead]; total: int; page: int; page_size: int
+    items: list[AnalysisQueryRead]
+    total: int
+    page: int
+    page_size: int

@@ -40,7 +40,9 @@ def test_csv_upload_persists_safe_filename(client: TestClient, upload_dir: Path)
 
 
 def test_xlsx_upload_uses_first_sheet(client: TestClient) -> None:
-    response = client.post("/api/v1/datasets", files={"file": ("book.xlsx", xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+    response = client.post(
+        "/api/v1/datasets", files={"file": ("book.xlsx", xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+    )
     assert response.status_code == 201
     body = response.json()
     assert body["file_type"] == "xlsx"
@@ -60,7 +62,9 @@ def test_file_too_large(client: TestClient) -> None:
 
 def test_corrupt_csv_and_xlsx(client: TestClient) -> None:
     csv_response = client.post("/api/v1/datasets", files={"file": ("bad.csv", b"\xff\xfe\x00", "text/csv")})
-    xlsx_response = client.post("/api/v1/datasets", files={"file": ("bad.xlsx", b"not a zip", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+    xlsx_response = client.post(
+        "/api/v1/datasets", files={"file": ("bad.xlsx", b"not a zip", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+    )
     assert csv_response.status_code == 422
     assert xlsx_response.status_code == 422
 
@@ -123,7 +127,9 @@ def test_dataset_delete_cascades_profile(client: TestClient) -> None:
 
 
 def test_profile_generation_xlsx(client: TestClient) -> None:
-    created = client.post("/api/v1/datasets", files={"file": ("book.xlsx", xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}).json()
+    created = client.post(
+        "/api/v1/datasets", files={"file": ("book.xlsx", xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+    ).json()
     response = client.post(f"/api/v1/datasets/{created['id']}/profile")
     assert response.status_code == 200
     assert response.json()["profile"]["summary"]["row_count"] == 2

@@ -27,11 +27,26 @@ class TopValue(BaseModel):
 
 
 class NumericProfile(BaseModel):
-    min: float | None = None; max: float | None = None; mean: float | None = None; median: float | None = None
-    std: float | None = None; variance: float | None = None; q1: float | None = None; q3: float | None = None
-    iqr: float | None = None; p01: float | None = None; p05: float | None = None; p95: float | None = None; p99: float | None = None
-    zero_count: int; zero_ratio: float; negative_count: int; negative_ratio: float
-    outlier_count: int; outlier_ratio: float; infinite_count: int
+    min: float | None = None
+    max: float | None = None
+    mean: float | None = None
+    median: float | None = None
+    std: float | None = None
+    variance: float | None = None
+    q1: float | None = None
+    q3: float | None = None
+    iqr: float | None = None
+    p01: float | None = None
+    p05: float | None = None
+    p95: float | None = None
+    p99: float | None = None
+    zero_count: int
+    zero_ratio: float
+    negative_count: int
+    negative_ratio: float
+    outlier_count: int
+    outlier_ratio: float
+    infinite_count: int
 
 
 class CategoricalProfile(BaseModel):
@@ -58,7 +73,10 @@ class DatetimeProfile(BaseModel):
 
 
 class BooleanProfile(BaseModel):
-    true_count: int; false_count: int; true_ratio: float; false_ratio: float
+    true_count: int
+    false_count: int
+    true_ratio: float
+    false_ratio: float
 
 
 class ColumnProfile(BaseModel):
@@ -82,7 +100,9 @@ class ColumnProfile(BaseModel):
 
 
 class CorrelationPair(BaseModel):
-    column_a: str; column_b: str; correlation: float
+    column_a: str
+    column_b: str
+    correlation: float
 
 
 class DataQualityIssue(BaseModel):
@@ -96,12 +116,21 @@ class DataQualityIssue(BaseModel):
 
 
 class DatasetProfileSummary(BaseModel):
-    row_count: int; column_count: int; total_cells: int
-    missing_cell_count: int; missing_cell_ratio: float
-    duplicate_row_count: int; duplicate_row_ratio: float
-    numeric_column_count: int; categorical_column_count: int; text_column_count: int
-    datetime_column_count: int; boolean_column_count: int
-    constant_column_count: int; all_missing_column_count: int; high_cardinality_column_count: int
+    row_count: int
+    column_count: int
+    total_cells: int
+    missing_cell_count: int
+    missing_cell_ratio: float
+    duplicate_row_count: int
+    duplicate_row_ratio: float
+    numeric_column_count: int
+    categorical_column_count: int
+    text_column_count: int
+    datetime_column_count: int
+    boolean_column_count: int
+    constant_column_count: int
+    all_missing_column_count: int
+    high_cardinality_column_count: int
     quality_score: float = Field(ge=0, le=100)
 
 
