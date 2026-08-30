@@ -1,6 +1,6 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 3 — Data Profiling & Data Quality Analysis**
+**Current Stage: Stage 4 — Natural Language to SQL Foundation**
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -18,8 +18,13 @@ DataPilot 当前提供结构化数据集的上传、持久化、列表、详情�
 - 缺失、重复、常量、高基数、异常值和无限值质量规则
 - 受限 Pearson Correlation Analysis
 - Profile 持久化、显式生成与刷新
+- Natural Language Questions 与 OpenAI-compatible LLM Provider
+- Structured Output SQL generation 与 Generated SQL transparency
+- sqlglot AST Safe SQL Validation
+- DuckDB CSV/XLSX Query Execution
+- Analysis Query History
 
-当前尚未实现 LLM、自然语言 SQL、Agent、Python Sandbox、Chart Agent 或 Report Agent。画像结果全部来自本地确定性程序计算。
+当前已在 NL→SQL 生成环节支持 LLM，但尚未实现 Agent、Planner、LangGraph、Python Sandbox、Chart Agent、Report Agent 或多轮分析。
 
 ## 项目结构
 
@@ -34,6 +39,7 @@ D:\毕业项目二
 │   │   ├── parsers.py
 │   │   ├── profiling
 │   │   ├── profile_service.py
+│   │   ├── query
 │   │   ├── repositories.py
 │   │   └── services.py
 │   ├── data\uploads
@@ -63,6 +69,12 @@ PREVIEW_ROW_LIMIT=20
 PROFILE_MAX_ROWS=100000
 PROFILE_SAMPLE_ROWS=50000
 PROFILE_TOP_VALUES=10
+LLM_API_KEY=
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=
+QUERY_DEFAULT_LIMIT=100
+QUERY_MAX_LIMIT=1000
+QUERY_TIMEOUT_SECONDS=10
 UPLOAD_DIR=data/uploads
 ```
 
@@ -85,7 +97,7 @@ Set-Location 'D:\毕业项目二\backend'
 alembic upgrade head
 ```
 
-应用不会使用 `create_all` 代替 migration。Dataset migration 为 `20260830_0001`，DatasetProfile migration 为 `20260830_0002`。
+应用不会使用 `create_all` 代替 migration。AnalysisQuery migration 为 `20260830_0003`。
 
 ## 启动后端
 
@@ -118,6 +130,9 @@ npm run dev
 - `GET /api/v1/datasets/{dataset_id}/preview`：字段统计与限量数据预览
 - `POST /api/v1/datasets/{dataset_id}/profile`：生成或刷新数据画像
 - `GET /api/v1/datasets/{dataset_id}/profile`：查询已持久化画像，不会自动生成
+- `POST /api/v1/datasets/{dataset_id}/queries`：自然语言问题生成、验证并执行 SQL
+- `GET /api/v1/datasets/{dataset_id}/queries`：分页 Query History
+- `GET /api/v1/datasets/{dataset_id}/queries/{query_id}`：Query metadata
 - `DELETE /api/v1/datasets/{dataset_id}`：删除元数据与磁盘文件
 - `GET /api/v1/health`：服务健康检查
 
@@ -158,11 +173,27 @@ npm run build
 
 相关性仅针对非恒定 Numeric 字段计算 Pearson correlation；列数、阈值和最大返回 pair 数均由配置限制。
 
+## Natural Language SQL 安全模型
+
+调用链为 `Question → bounded schema context → LLM structured SQL candidate → sqlglot AST validation → DuckDB execution → structured result`。LLM 不能连接数据库，也不能获得磁盘路径或完整数据文件。
+
+- 只允许单条 SELECT/CTE Query，且必须读取逻辑表 `dataset`
+- 拒绝数据修改、DDL、ATTACH/COPY/PRAGMA/INSTALL/LOAD/CALL 等命令
+- 拒绝系统目录、其他表、文件读取、网络读取和外部数据库 scan functions
+- Validator 自动加入或收紧 LIMIT；结果另受最大单元格数限制
+- DuckDB 使用独立内存 connection；CSV 使用受管路径创建 relation，XLSX 通过 pandas 注册 DataFrame
+- worker thread 执行并在超时时调用 DuckDB `interrupt()`；超时不是仅配置未使用
+- NaN、Infinity、Timestamp、Decimal 和 NumPy scalar 转换为稳定 JSON 值
+- Query History 只保存 metadata，不保存巨大结果集
+
+如果 `LLM_API_KEY` 或 `LLM_MODEL` 未配置，旧功能仍正常启动和使用；只有 Query API 返回 `503 / LLM_NOT_CONFIGURED`。API Key 必须只保存在服务端环境变量中。
+
 ## 当前限制
 
 - 同步解析，状态模型已为未来异步处理预留 `UPLOADING / PROCESSING / READY / FAILED`
 - Profiling 当前同步执行，Profile 状态已预留 `PENDING / RUNNING / READY / FAILED`
+- NL→SQL 当前为单次生成，没有自动重试、Agent loop 或多轮会话
 - XLSX 固定使用第一个 worksheet
 - CSV 当前按 UTF-8 解析
 - 数据文件保存在本机磁盘，尚无对象存储
-- 下一阶段规划为 **Stage 4 — Natural Language to SQL Foundation**
+- 下一阶段规划为 **Stage 5 — Python Analysis Tool Foundation**

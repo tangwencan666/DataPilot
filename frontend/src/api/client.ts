@@ -1,7 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(message: string, public status: number, public code?: string) {
     super(message)
   }
 }
@@ -10,6 +10,6 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
   const response = await fetch(`${API_BASE}${path}`, options)
   if (response.status === 204) return undefined as T
   const body = await response.json().catch(() => ({}))
-  if (!response.ok) throw new ApiError(body.detail ?? '请求失败', response.status)
+  if (!response.ok) throw new ApiError(body.detail ?? '请求失败', response.status, body.code)
   return body as T
 }

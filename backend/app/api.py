@@ -7,6 +7,9 @@ from app.profile_service import DatasetProfileService
 from app.profiling.types import ProfileResult
 from app.schemas import DatasetListResponse, DatasetPreview, DatasetProfileRead, DatasetRead, HealthResponse
 from app.services import DatasetService
+from app.query.provider import LLMProvider, OpenAICompatibleProvider
+from app.query.schemas import AnalysisQueryRead, QueryCreate, QueryListResponse, QueryResponse
+from app.query.service import NaturalLanguageSQLService, query_read
 
 router = APIRouter()
 
@@ -17,6 +20,14 @@ def service_dependency(session: Session = Depends(get_db), settings: Settings = 
 
 def profile_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DatasetProfileService:
     return DatasetProfileService(session, settings)
+
+
+def get_llm_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
+    return OpenAICompatibleProvider(settings)
+
+
+def query_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), provider: LLMProvider = Depends(get_llm_provider)) -> NaturalLanguageSQLService:
+    return NaturalLanguageSQLService(session, settings, provider)
 
 
 def profile_response(profile) -> DatasetProfileRead:
@@ -67,6 +78,22 @@ def generate_dataset_profile(dataset_id: str, service: DatasetProfileService = D
 @router.get("/datasets/{dataset_id}/profile", response_model=DatasetProfileRead)
 def get_dataset_profile(dataset_id: str, service: DatasetProfileService = Depends(profile_service_dependency)) -> DatasetProfileRead:
     return profile_response(service.get(dataset_id))
+
+
+@router.post("/datasets/{dataset_id}/queries", response_model=QueryResponse)
+def run_dataset_query(dataset_id: str, payload: QueryCreate, service: NaturalLanguageSQLService = Depends(query_service_dependency)) -> QueryResponse:
+    return service.run(dataset_id, payload.question)
+
+
+@router.get("/datasets/{dataset_id}/queries", response_model=QueryListResponse)
+def list_dataset_queries(dataset_id: str, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), service: NaturalLanguageSQLService = Depends(query_service_dependency)) -> QueryListResponse:
+    items, total = service.list(dataset_id, page, page_size)
+    return QueryListResponse(items=[query_read(item) for item in items], total=total, page=page, page_size=page_size)
+
+
+@router.get("/datasets/{dataset_id}/queries/{query_id}", response_model=AnalysisQueryRead)
+def get_dataset_query(dataset_id: str, query_id: str, service: NaturalLanguageSQLService = Depends(query_service_dependency)) -> AnalysisQueryRead:
+    return query_read(service.get(dataset_id, query_id))
 
 
 @router.delete("/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -24,6 +24,15 @@ class ProfileStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
+class QueryStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    GENERATING = "GENERATING"
+    VALIDATING = "VALIDATING"
+    EXECUTING = "EXECUTING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
 class Dataset(Base):
     __tablename__ = "datasets"
 
@@ -59,6 +68,23 @@ class DatasetProfile(Base):
     quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     profile_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class AnalysisQuery(Base):
+    __tablename__ = "analysis_queries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id: Mapped[str] = mapped_column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    generated_sql: Mapped[str | None] = mapped_column(Text, nullable=True)
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[QueryStatus] = mapped_column(Enum(QueryStatus, name="query_status", native_enum=False), nullable=False, default=QueryStatus.PENDING)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

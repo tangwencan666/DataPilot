@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     profile_high_cardinality_ratio: float = 0.8
     upload_dir: Path = Path("data/uploads")
     database_url: str = "postgresql+psycopg://datapilot:datapilot@localhost:5432/datapilot"
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = ""
+    query_default_limit: int = 100
+    query_max_limit: int = 1000
+    query_timeout_seconds: float = 10
+    query_max_result_cells: int = 100_000
+    query_max_sql_length: int = 10_000
+    max_question_length: int = 2_000
     allowed_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

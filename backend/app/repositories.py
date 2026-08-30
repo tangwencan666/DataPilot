@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Dataset, DatasetProfile, DatasetStatus, ProfileStatus
+from app.models import AnalysisQuery, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
 
 
 class DatasetRepository:
@@ -44,3 +44,22 @@ class DatasetProfileRepository:
             self.session.add(profile)
             self.session.flush()
         return profile
+
+
+class AnalysisQueryRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def create(self, dataset_id: str, question: str) -> AnalysisQuery:
+        query = AnalysisQuery(dataset_id=dataset_id, question=question, status=QueryStatus.PENDING)
+        self.session.add(query); self.session.flush()
+        return query
+
+    def get(self, dataset_id: str, query_id: str) -> AnalysisQuery | None:
+        return self.session.scalar(select(AnalysisQuery).where(AnalysisQuery.dataset_id == dataset_id, AnalysisQuery.id == query_id))
+
+    def list(self, dataset_id: str, page: int, page_size: int) -> tuple[list[AnalysisQuery], int]:
+        condition = AnalysisQuery.dataset_id == dataset_id
+        total = self.session.scalar(select(func.count()).select_from(AnalysisQuery).where(condition)) or 0
+        statement = select(AnalysisQuery).where(condition).order_by(AnalysisQuery.created_at.desc(), AnalysisQuery.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        return list(self.session.scalars(statement)), total

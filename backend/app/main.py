@@ -6,6 +6,7 @@ from app.config import get_settings
 from app.exceptions import DatasetError
 from app.schemas import ErrorResponse
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.1.0")
@@ -21,7 +22,12 @@ app.include_router(router, prefix="/api/v1")
 
 @app.exception_handler(DatasetError)
 def dataset_error_handler(_, exc: DatasetError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content=ErrorResponse(detail=exc.detail).model_dump())
+    return JSONResponse(status_code=exc.status_code, content=ErrorResponse(detail=exc.detail, code=exc.code).model_dump())
+
+
+@app.exception_handler(RequestValidationError)
+def request_validation_error_handler(_, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(status_code=422, content=ErrorResponse(detail="Request validation failed.", code="VALIDATION_ERROR").model_dump())
 
 
 @app.get("/", include_in_schema=False)
