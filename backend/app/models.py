@@ -59,6 +59,7 @@ class AgentRunStatus(str, enum.Enum):
 
 class AgentStepStatus(str, enum.Enum):
     PENDING="PENDING"; RUNNING="RUNNING"; SUCCEEDED="SUCCEEDED"; FAILED="FAILED"; SKIPPED="SKIPPED"
+class ReportStatus(str,enum.Enum):PENDING="PENDING";GENERATING="GENERATING";READY="READY";FAILED="FAILED"
 
 
 class Dataset(Base):
@@ -187,3 +188,6 @@ class AgentStepAttempt(Base):
     attempt_number: Mapped[int]=mapped_column(Integer,nullable=False);attempt_type: Mapped[str]=mapped_column(String(16),nullable=False);status: Mapped[str]=mapped_column(String(16),nullable=False)
     input_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);observation_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);repair_summary_json: Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict)
     execution_time_ms: Mapped[float|None]=mapped_column(Float,nullable=True);error_code: Mapped[str|None]=mapped_column(String(64),nullable=True);error_message: Mapped[str|None]=mapped_column(Text,nullable=True);created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False)
+class Report(Base):
+    __tablename__="reports"
+    id:Mapped[str]=mapped_column(String(36),primary_key=True,default=lambda:str(uuid.uuid4()));dataset_id:Mapped[str]=mapped_column(String(36),ForeignKey("datasets.id",ondelete="CASCADE"),nullable=False,index=True);agent_run_id:Mapped[str]=mapped_column(String(36),ForeignKey("agent_runs.id",ondelete="CASCADE"),nullable=False,index=True);title:Mapped[str]=mapped_column(String(200),nullable=False);status:Mapped[ReportStatus]=mapped_column(Enum(ReportStatus,name="report_status",native_enum=False),nullable=False,default=ReportStatus.PENDING);executive_summary:Mapped[str]=mapped_column(Text,nullable=False,default="");report_json:Mapped[dict[str,Any]]=mapped_column(JSON().with_variant(JSONB,"postgresql"),nullable=False,default=dict);insight_count:Mapped[int]=mapped_column(Integer,nullable=False,default=0);artifact_count:Mapped[int]=mapped_column(Integer,nullable=False,default=0);evidence_truncated:Mapped[bool]=mapped_column(nullable=False,default=False);generation_time_ms:Mapped[float|None]=mapped_column(Float);error_code:Mapped[str|None]=mapped_column(String(64));error_message:Mapped[str|None]=mapped_column(Text);created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False);updated_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),server_default=func.now(),onupdate=func.now(),nullable=False)

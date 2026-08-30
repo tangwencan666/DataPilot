@@ -19,6 +19,8 @@ from app.agents.runtime import AgentRuntime
 from app.agents.schemas import AgentCreate,AgentRunList,AgentRunRead,AgentRunResponse
 from app.agents.service import PlannerAgentService
 from app.agents.tools import AnalysisToolAdapter,ChartToolAdapter,SQLToolAdapter,ToolRegistry
+from app.reports.schemas import ReportCreate,ReportList,ReportRead
+from app.reports.service import ReportService,report_read
 
 router = APIRouter()
 
@@ -53,6 +55,7 @@ def agent_service_dependency(session:Session=Depends(get_db),settings:Settings=D
     query_service=NaturalLanguageSQLService(session,settings,provider);analysis_service=StructuredAnalysisService(session,settings,runner);chart_service=ChartService(session,settings)
     registry=ToolRegistry([SQLToolAdapter(query_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),AnalysisToolAdapter(analysis_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),ChartToolAdapter(chart_service)])
     return PlannerAgentService(session,settings,provider,lambda context,columns:AgentRuntime(session,settings,registry,provider,context,columns))
+def report_service_dependency(session:Session=Depends(get_db),settings:Settings=Depends(get_settings),provider:LLMProvider=Depends(get_llm_provider))->ReportService:return ReportService(session,settings,provider)
 
 
 def profile_response(profile) -> DatasetProfileRead:
@@ -160,6 +163,18 @@ def list_agent_runs(dataset_id:str,page:int=Query(1,ge=1),page_size:int=Query(20
 
 @router.get("/datasets/{dataset_id}/agent-runs/{agent_run_id}",response_model=AgentRunRead)
 def get_agent_run(dataset_id:str,agent_run_id:str,service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunRead:return service.read(service.get(dataset_id,agent_run_id))
+@router.post("/datasets/{dataset_id}/reports",response_model=ReportRead,status_code=status.HTTP_201_CREATED)
+def create_report(dataset_id:str,payload:ReportCreate,service:ReportService=Depends(report_service_dependency))->ReportRead:return report_read(service.create(dataset_id,payload.agent_run_id))
+@router.get("/datasets/{dataset_id}/reports",response_model=ReportList)
+def list_reports(dataset_id:str,page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),service:ReportService=Depends(report_service_dependency))->ReportList:
+ items,total=service.list(dataset_id,page,page_size);return ReportList(items=[report_read(x) for x in items],total=total,page=page,page_size=page_size)
+@router.get("/datasets/{dataset_id}/reports/{report_id}",response_model=ReportRead)
+def get_report(dataset_id:str,report_id:str,service:ReportService=Depends(report_service_dependency))->ReportRead:return report_read(service.get(dataset_id,report_id))
+@router.delete("/datasets/{dataset_id}/reports/{report_id}",status_code=status.HTTP_204_NO_CONTENT)
+def delete_report(dataset_id:str,report_id:str,service:ReportService=Depends(report_service_dependency))->Response:service.delete(dataset_id,report_id);return Response(status_code=204)
+@router.get("/datasets/{dataset_id}/reports/{report_id}/export")
+def export_report(dataset_id:str,report_id:str,format:str=Query("markdown"),service:ReportService=Depends(report_service_dependency))->Response:
+ data=service.export(dataset_id,report_id,format);media="text/markdown" if format=="markdown" else "text/html";return Response(content=data,media_type=f"{media}; charset=utf-8")
 
 
 @router.delete("/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)

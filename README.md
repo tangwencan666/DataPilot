@@ -1,6 +1,6 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 8 — Agent Observation & Controlled Retry**
+**Current Stage: Stage 9 — Insight & Report Generation**
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -37,6 +37,10 @@ DataPilot 当前提供结构化数据集的上传、持久化、列表、详情�
 - Tool-specific Controlled Repair、单步一次 Retry 与持久化 Attempt Trace
 
 Stage 8 提供 bounded plan-and-execute data analyst agent with controlled observation and retry。它不是无限 ReAct、递归 Planner、Multi-Agent 或 Report Agent。
+
+Stage 9 增加 `AgentRun snapshot → bounded Evidence → structured Insights → evidence-ref validation → fixed ReportDocument → persistence/export`。只允许 SUCCEEDED/PARTIAL source；每个 Insight 必须引用真实 step/query/analysis/chart/profile evidence。报告固定包含摘要、目标、Dataset、发现、详细分析、可视化、质量、方法、限制和结论。Markdown/HTML 由程序模板生成并 escape，不接受 LLM raw HTML/JavaScript；PDF 尚未实现。
+
+Evidence 默认最多 20 steps、每步 10 行、50000 字符、20 issues、20 correlations、20 artifacts；Insights 最多 10，export 最大 1 MB。Reports Tab 支持生成、历史、查看、artifact references 与 Markdown/HTML export。系统现已覆盖 Upload → Profile → Ask → Plan → Tools → Observe/Repair → Synthesize → Report，但仍不是 fully production-ready 或 unrestricted autonomous agent。
 
 ## 项目结构
 

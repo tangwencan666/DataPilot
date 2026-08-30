@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     agent_repair_timeout_seconds: float = 15
     agent_repair_context_chars: int = 10_000
     agent_max_observation_chars: int = 4_000
+    report_max_insights:int=10;report_max_step_evidence:int=20;report_max_evidence_rows_per_step:int=10;report_max_evidence_chars:int=50_000;report_max_profile_issues:int=20;report_max_correlations:int=20;report_max_artifacts:int=20;report_max_title_length:int=200;report_max_export_bytes:int=1_000_000
     allowed_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

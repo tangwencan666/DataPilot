@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AgentRun, AgentRunStatus, AgentStepAttempt, AgentStepRun, AgentStepStatus, AnalysisQuery, AnalysisRun, AnalysisRunStatus, Chart, ChartSourceType, ChartStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
+from app.models import AgentRun, AgentRunStatus, AgentStepAttempt, AgentStepRun, AgentStepStatus, AnalysisQuery, AnalysisRun, AnalysisRunStatus, Chart, ChartSourceType, ChartStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus,Report,ReportStatus
 
 
 class DatasetRepository:
@@ -113,3 +113,10 @@ class AgentRunRepository:
     def create_attempt(self,step_run_id:str,number:int,kind:str,input_summary:dict)->AgentStepAttempt:
         item=AgentStepAttempt(agent_step_run_id=step_run_id,attempt_number=number,attempt_type=kind,status="RUNNING",input_summary_json=input_summary,observation_json={},repair_summary_json={});self.session.add(item);self.session.flush();return item
     def attempts(self,step_run_id:str):return list(self.session.scalars(select(AgentStepAttempt).where(AgentStepAttempt.agent_step_run_id==step_run_id).order_by(AgentStepAttempt.attempt_number)))
+class ReportRepository:
+    def __init__(self,session:Session):self.session=session
+    def create(self,dataset_id,run_id):
+        x=Report(dataset_id=dataset_id,agent_run_id=run_id,title="Generating report",status=ReportStatus.PENDING,report_json={});self.session.add(x);self.session.flush();return x
+    def get(self,dataset_id,report_id):return self.session.scalar(select(Report).where(Report.dataset_id==dataset_id,Report.id==report_id))
+    def list(self,dataset_id,page,page_size):
+        c=Report.dataset_id==dataset_id;total=self.session.scalar(select(func.count()).select_from(Report).where(c)) or 0;return list(self.session.scalars(select(Report).where(c).order_by(Report.created_at.desc()).offset((page-1)*page_size).limit(page_size))),total
