@@ -1,12 +1,25 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = "DataPilot API"
     app_env: str = "development"
+    debug: bool = False
+    auth_required: bool = False
+    secret_key: str = "development-only-change-me"
+    access_token_expire_minutes: int = 60
+    rate_limit_enabled: bool = True
+    rate_limit_default: str = "120/minute"
+    rate_limit_auth: str = "10/minute"
+    rate_limit_expensive: str = "20/minute"
+    max_datasets_per_user: int = 100
+    max_storage_bytes_per_user: int = 1_073_741_824
+    max_page_size: int = 100
+    log_level: str = "INFO"
     max_upload_mb: int = 20
     preview_row_limit: int = 20
     profile_max_rows: int = 100_000
@@ -65,10 +78,34 @@ class Settings(BaseSettings):
     agent_repair_timeout_seconds: float = 15
     agent_repair_context_chars: int = 10_000
     agent_max_observation_chars: int = 4_000
-    report_max_insights:int=10;report_max_step_evidence:int=20;report_max_evidence_rows_per_step:int=10;report_max_evidence_chars:int=50_000;report_max_profile_issues:int=20;report_max_correlations:int=20;report_max_artifacts:int=20;report_max_title_length:int=200;report_max_export_bytes:int=1_000_000
+    report_max_insights: int = 10
+    report_max_step_evidence: int = 20
+    report_max_evidence_rows_per_step: int = 10
+    report_max_evidence_chars: int = 50_000
+    report_max_profile_issues: int = 20
+    report_max_correlations: int = 20
+    report_max_artifacts: int = 20
+    report_max_title_length: int = 200
+    report_max_export_bytes: int = 1_000_000
     allowed_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_production(self) -> "Settings":
+        if self.app_env == "production":
+            if not self.auth_required:
+                raise ValueError("AUTH_REQUIRED must be enabled in production")
+            if (
+                self.secret_key in {"", "development-only-change-me", "change-me", "local-development-secret-change-before-deploying"}
+                or len(self.secret_key) < 32
+            ):
+                raise ValueError("Production SECRET_KEY must be at least 32 characters and non-default")
+            if "datapilot:datapilot@" in self.database_url or "datapilot-local-only" in self.database_url:
+                raise ValueError("Production DATABASE_URL must not use the example credentials")
+            if "*" in self.cors_origins:
+                raise ValueError("Wildcard CORS origins are not permitted in production")
+        return self
 
     @property
     def cors_origins(self) -> list[str]:

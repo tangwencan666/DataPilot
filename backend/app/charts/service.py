@@ -11,8 +11,8 @@ from app.parsers import load_dataframe
 from app.repositories import ChartRepository, DatasetRepository
 
 class ChartService:
-    def __init__(self, session: Session, settings: Settings) -> None:
-        self.session=session; self.settings=settings; self.datasets=DatasetRepository(session); self.charts=ChartRepository(session)
+    def __init__(self, session: Session, settings: Settings, owner_user_id: str | None = None) -> None:
+        self.session=session; self.settings=settings; self.datasets=DatasetRepository(session,owner_user_id); self.charts=ChartRepository(session)
 
     def create(self, dataset_id: str, spec: ChartSpec) -> ChartResult:
         dataset=self.datasets.get_by_id(dataset_id)

@@ -1,10 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App'
+import { Suspense } from 'react'
+import AuthGate from './AuthGate'
+import { ErrorBoundary } from './ErrorBoundary'
 import './styles.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary><Suspense fallback={<main className="auth-shell">Loading workspace…</main>}><AuthGate /></Suspense></ErrorBoundary>
   </React.StrictMode>,
 )

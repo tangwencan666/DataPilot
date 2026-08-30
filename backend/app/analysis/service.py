@@ -12,8 +12,8 @@ SAMPLE_SAFE = {"descriptive_statistics", "correlation"}
 
 
 class StructuredAnalysisService:
-    def __init__(self, session: Session, settings: Settings, runner: AnalysisProcessRunner | None = None) -> None:
-        self.session=session; self.settings=settings; self.datasets=DatasetRepository(session); self.runs=AnalysisRunRepository(session); self.runner=runner or AnalysisProcessRunner(settings)
+    def __init__(self, session: Session, settings: Settings, runner: AnalysisProcessRunner | None = None, owner_user_id: str | None = None) -> None:
+        self.session=session; self.settings=settings; self.datasets=DatasetRepository(session,owner_user_id); self.runs=AnalysisRunRepository(session); self.runner=runner or AnalysisProcessRunner(settings)
 
     def execute(self, dataset_id: str, plan: AnalysisPlan) -> AnalysisResponse:
         dataset=self.datasets.get_by_id(dataset_id)

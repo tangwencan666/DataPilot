@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import Settings, get_settings
 from app.database import Base, get_db
 from app.main import app
+from app.rate_limit import limiter
 
 
 @pytest.fixture
@@ -19,6 +20,7 @@ def upload_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client(upload_dir: Path) -> Generator[TestClient, None, None]:
+    limiter.reset()
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     event.listen(engine, "connect", lambda connection, _: connection.execute("PRAGMA foreign_keys=ON"))
     testing_session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
@@ -34,5 +36,6 @@ def client(upload_dir: Path) -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+    limiter.reset()
     Base.metadata.drop_all(engine)
     engine.dispose()

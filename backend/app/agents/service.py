@@ -11,7 +11,7 @@ from app.models import AgentRun,AgentRunStatus
 from app.repositories import AgentRunRepository,DatasetProfileRepository,DatasetRepository
 logger=logging.getLogger(__name__)
 class PlannerAgentService:
-    def __init__(self,session:Session,settings:Settings,provider,runtime_factory)->None:self.session=session;self.settings=settings;self.provider=provider;self.runtime_factory=runtime_factory;self.runs=AgentRunRepository(session);self.datasets=DatasetRepository(session);self.profiles=DatasetProfileRepository(session)
+    def __init__(self,session:Session,settings:Settings,provider,runtime_factory,owner_user_id:str|None=None)->None:self.session=session;self.settings=settings;self.provider=provider;self.runtime_factory=runtime_factory;self.runs=AgentRunRepository(session);self.datasets=DatasetRepository(session,owner_user_id);self.profiles=DatasetProfileRepository(session)
     def run(self,dataset_id:str,question:str)->AgentRunResponse:
         dataset=self.datasets.get_by_id(dataset_id)
         if dataset is None:raise DatasetNotFoundError("Dataset 不存在")

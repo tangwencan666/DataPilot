@@ -1,0 +1,7 @@
+# Security foundation
+
+DataPilot treats model output as untrusted. SQL always passes the sqlglot allowlist validator and bounded DuckDB executor; Analysis accepts only the Stage 5 Pydantic DSL in a spawned worker; Charts accept a validated `ChartSpec` and server-built ECharts option. Planner/repair cannot enable bypass flags or submit shell, files, raw Python, raw SQL, or JavaScript. Reports accept only evidence references from bounded runtime snapshots and use escaped program templates for Markdown/HTML.
+
+Stage 10 adds Argon2 password hashing, signed short-lived JWTs, Dataset ownership checks returning 404 across child resources, upload type/size/path checks, account dataset/storage quotas, bounded pagination and question/title schemas, CORS validation, security headers, request IDs, sanitized 500 responses, and SlowAPI limits on authentication/upload/query/agent/report endpoints. Logs record metadata, never authorization headers, passwords, request bodies, API keys, or Dataset content.
+
+Current limits: JWT uses browser localStorage (HttpOnly secure cookies are preferable for an internet-facing deployment); rate limiting is process-local and needs Redis for multiple replicas; uploads use a managed local volume rather than object storage; the analysis worker is resource-bounded but not an OS/container sandbox. External secret management, malware scanning, a WAF, audit retention, and independent penetration testing remain deployment responsibilities.

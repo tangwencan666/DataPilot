@@ -1,6 +1,23 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 9 — Insight & Report Generation**
+**Current Stage: Stage 10 — Production Hardening & Deployment Foundation** · **Version 0.9.0**
+
+Stage 1–9 的功能路线已完成；Stage 10 增加 PostgreSQL/Docker 部署栈、JWT 身份认证、Dataset 账户隔离、限流、上传配额、请求 ID、结构化请求日志、Prometheus 指标、CI、前端质量门禁及安全文档。这里的准确定位是 **production-hardening foundation / deployment-ready development stack**，不是 enterprise-ready 或 fully sandboxed。
+
+## Quick Start with Docker
+
+```powershell
+Set-Location 'D:\毕业项目二'
+Copy-Item .env.example .env
+# 修改 .env 中 SECRET_KEY 与 POSTGRES_PASSWORD
+docker compose up --build
+```
+
+Compose 会等待 PostgreSQL healthcheck，通过 Alembic 自动升级至 `20260830_0009`，随后启动非 root Backend 与 Nginx Frontend。打开 http://localhost，注册账户，再上传 [demo/sales_demo.csv](demo/sales_demo.csv)。API 文档直连地址为 http://localhost:8000/docs，readiness 为 http://localhost:8000/ready，metrics 为 http://localhost:8000/metrics。
+
+`LLM_API_KEY` 与 `LLM_MODEL` 可留空：Auth、Dataset、Profile、Analysis Lab 和 Charts 仍可使用；NL SQL、Agent 与 Reports 会明确返回未配置错误，不会调用假 Agent 或付费 API。
+
+生产部署必须替换示例密码/SECRET_KEY，收紧 `ALLOWED_ORIGINS`，并备份 PostgreSQL volume 与 uploads volume。多实例部署还应改用 Redis-backed rate limiter 和对象存储；详见 [安全说明](docs/security.md)、[架构](docs/architecture.md) 与 [威胁模型](docs/threat-model.md)。
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -142,7 +159,7 @@ Set-Location 'D:\毕业项目二\backend'
 alembic upgrade head
 ```
 
-应用不会使用 `create_all` 代替 migration。AgentStepAttempt migration 为 `20260830_0007`。
+应用不会使用 `create_all` 代替 migration。当前 head 为 `20260830_0009`。
 
 ## 启动后端
 

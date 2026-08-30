@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -21,41 +22,44 @@ from app.agents.service import PlannerAgentService
 from app.agents.tools import AnalysisToolAdapter,ChartToolAdapter,SQLToolAdapter,ToolRegistry
 from app.reports.schemas import ReportCreate,ReportList,ReportRead
 from app.reports.service import ReportService,report_read
+from app.auth import LoginRequest, RegisterRequest, TokenResponse, UserRead, create_access_token, current_user_optional, normalize_email, password_hash
+from app.models import User
+from app.rate_limit import limiter
 
 router = APIRouter()
 
 
-def service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DatasetService:
-    return DatasetService(session, settings)
+def service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), user: User | None = Depends(current_user_optional)) -> DatasetService:
+    return DatasetService(session, settings, user.id if user else None)
 
 
-def profile_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> DatasetProfileService:
-    return DatasetProfileService(session, settings)
+def profile_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), user: User | None = Depends(current_user_optional)) -> DatasetProfileService:
+    return DatasetProfileService(session, settings, user.id if user else None)
 
 
 def get_llm_provider(settings: Settings = Depends(get_settings)) -> LLMProvider:
     return OpenAICompatibleProvider(settings)
 
 
-def query_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), provider: LLMProvider = Depends(get_llm_provider)) -> NaturalLanguageSQLService:
-    return NaturalLanguageSQLService(session, settings, provider)
+def query_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), provider: LLMProvider = Depends(get_llm_provider), user: User | None = Depends(current_user_optional)) -> NaturalLanguageSQLService:
+    return NaturalLanguageSQLService(session, settings, provider, user.id if user else None)
 
 
 def get_analysis_runner(settings: Settings = Depends(get_settings)) -> AnalysisProcessRunner:
     return AnalysisProcessRunner(settings)
 
 
-def analysis_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), runner: AnalysisProcessRunner = Depends(get_analysis_runner)) -> StructuredAnalysisService:
-    return StructuredAnalysisService(session, settings, runner)
+def analysis_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), runner: AnalysisProcessRunner = Depends(get_analysis_runner), user: User | None = Depends(current_user_optional)) -> StructuredAnalysisService:
+    return StructuredAnalysisService(session, settings, runner, user.id if user else None)
 
-def chart_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> ChartService:
-    return ChartService(session, settings)
+def chart_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), user: User | None = Depends(current_user_optional)) -> ChartService:
+    return ChartService(session, settings, user.id if user else None)
 
-def agent_service_dependency(session:Session=Depends(get_db),settings:Settings=Depends(get_settings),provider:LLMProvider=Depends(get_llm_provider),runner:AnalysisProcessRunner=Depends(get_analysis_runner))->PlannerAgentService:
-    query_service=NaturalLanguageSQLService(session,settings,provider);analysis_service=StructuredAnalysisService(session,settings,runner);chart_service=ChartService(session,settings)
+def agent_service_dependency(session:Session=Depends(get_db),settings:Settings=Depends(get_settings),provider:LLMProvider=Depends(get_llm_provider),runner:AnalysisProcessRunner=Depends(get_analysis_runner),user:User|None=Depends(current_user_optional))->PlannerAgentService:
+    owner=user.id if user else None;query_service=NaturalLanguageSQLService(session,settings,provider,owner);analysis_service=StructuredAnalysisService(session,settings,runner,owner);chart_service=ChartService(session,settings,owner)
     registry=ToolRegistry([SQLToolAdapter(query_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),AnalysisToolAdapter(analysis_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),ChartToolAdapter(chart_service)])
-    return PlannerAgentService(session,settings,provider,lambda context,columns:AgentRuntime(session,settings,registry,provider,context,columns))
-def report_service_dependency(session:Session=Depends(get_db),settings:Settings=Depends(get_settings),provider:LLMProvider=Depends(get_llm_provider))->ReportService:return ReportService(session,settings,provider)
+    return PlannerAgentService(session,settings,provider,lambda context,columns:AgentRuntime(session,settings,registry,provider,context,columns),owner)
+def report_service_dependency(session:Session=Depends(get_db),settings:Settings=Depends(get_settings),provider:LLMProvider=Depends(get_llm_provider),user:User|None=Depends(current_user_optional))->ReportService:return ReportService(session,settings,provider,user.id if user else None)
 
 
 def profile_response(profile) -> DatasetProfileRead:
@@ -74,8 +78,38 @@ def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     return HealthResponse(status="ok", service=settings.app_name, environment=settings.app_env)
 
 
+@router.post("/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
+def register(request: Request, payload: RegisterRequest, session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> TokenResponse:
+    email = normalize_email(str(payload.email))
+    if session.scalar(select(User).where(User.email == email)):
+        raise HTTPException(status_code=409, detail="Email is already registered")
+    user = User(email=email, password_hash=password_hash.hash(payload.password))
+    session.add(user); session.commit(); session.refresh(user)
+    token, expires = create_access_token(user.id, settings)
+    return TokenResponse(access_token=token, expires_in=expires, user=UserRead.model_validate(user))
+
+
+@router.post("/auth/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
+def login(request: Request, payload: LoginRequest, session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> TokenResponse:
+    user = session.scalar(select(User).where(User.email == normalize_email(str(payload.email))))
+    if user is None or not password_hash.verify(payload.password, user.password_hash) or not user.is_active:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token, expires = create_access_token(user.id, settings)
+    return TokenResponse(access_token=token, expires_in=expires, user=UserRead.model_validate(user))
+
+
+@router.get("/auth/me", response_model=UserRead)
+def me(user: User | None = Depends(current_user_optional)) -> UserRead:
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return UserRead.model_validate(user)
+
+
 @router.post("/datasets", response_model=DatasetRead, status_code=status.HTTP_201_CREATED)
-async def upload_dataset(file: UploadFile = File(...), service: DatasetService = Depends(service_dependency)) -> DatasetRead:
+@limiter.limit("20/minute")
+async def upload_dataset(request: Request, file: UploadFile = File(...), service: DatasetService = Depends(service_dependency)) -> DatasetRead:
     return DatasetRead.model_validate(await service.upload(file))
 
 
@@ -109,7 +143,8 @@ def get_dataset_profile(dataset_id: str, service: DatasetProfileService = Depend
 
 
 @router.post("/datasets/{dataset_id}/queries", response_model=QueryResponse)
-def run_dataset_query(dataset_id: str, payload: QueryCreate, service: NaturalLanguageSQLService = Depends(query_service_dependency)) -> QueryResponse:
+@limiter.limit("20/minute")
+def run_dataset_query(request: Request, dataset_id: str, payload: QueryCreate, service: NaturalLanguageSQLService = Depends(query_service_dependency)) -> QueryResponse:
     return service.run(dataset_id, payload.question)
 
 
@@ -155,7 +190,8 @@ def delete_dataset_chart(dataset_id: str, chart_id: str, service: ChartService=D
     service.delete(dataset_id,chart_id); return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.post("/datasets/{dataset_id}/agent-runs",response_model=AgentRunResponse,status_code=status.HTTP_201_CREATED)
-def create_agent_run(dataset_id:str,payload:AgentCreate,service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunResponse:return service.run(dataset_id,payload.question)
+@limiter.limit("20/minute")
+def create_agent_run(request:Request,dataset_id:str,payload:AgentCreate,service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunResponse:return service.run(dataset_id,payload.question)
 
 @router.get("/datasets/{dataset_id}/agent-runs",response_model=AgentRunList)
 def list_agent_runs(dataset_id:str,page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunList:
@@ -164,7 +200,8 @@ def list_agent_runs(dataset_id:str,page:int=Query(1,ge=1),page_size:int=Query(20
 @router.get("/datasets/{dataset_id}/agent-runs/{agent_run_id}",response_model=AgentRunRead)
 def get_agent_run(dataset_id:str,agent_run_id:str,service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunRead:return service.read(service.get(dataset_id,agent_run_id))
 @router.post("/datasets/{dataset_id}/reports",response_model=ReportRead,status_code=status.HTTP_201_CREATED)
-def create_report(dataset_id:str,payload:ReportCreate,service:ReportService=Depends(report_service_dependency))->ReportRead:return report_read(service.create(dataset_id,payload.agent_run_id))
+@limiter.limit("20/minute")
+def create_report(request:Request,dataset_id:str,payload:ReportCreate,service:ReportService=Depends(report_service_dependency))->ReportRead:return report_read(service.create(dataset_id,payload.agent_run_id))
 @router.get("/datasets/{dataset_id}/reports",response_model=ReportList)
 def list_reports(dataset_id:str,page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),service:ReportService=Depends(report_service_dependency))->ReportList:
  items,total=service.list(dataset_id,page,page_size);return ReportList(items=[report_read(x) for x in items],total=total,page=page,page_size=page_size)

@@ -15,14 +15,16 @@ class InsightValidator:
   if any(ref not in allowed for x in result.insights for ref in x.evidence_refs):raise ReportInvalidInsights("Insight references unsupported evidence.")
   return result
 class ReportService:
- def __init__(self,session,settings,provider):
-  self.db=session;self.s=settings;self.provider=provider;self.datasets=DatasetRepository(session);self.runs=AgentRunRepository(session);self.reports=ReportRepository(session);self.profiles=DatasetProfileRepository(session);self.charts=ChartRepository(session);self.queries=AnalysisQueryRepository(session);self.analyses=AnalysisRunRepository(session)
+ def __init__(self,session,settings,provider,owner_user_id=None):
+  self.db=session;self.s=settings;self.provider=provider;self.owner_user_id=owner_user_id;self.datasets=DatasetRepository(session,owner_user_id);self.runs=AgentRunRepository(session);self.reports=ReportRepository(session);self.profiles=DatasetProfileRepository(session);self.charts=ChartRepository(session);self.queries=AnalysisQueryRepository(session);self.analyses=AnalysisRunRepository(session)
  def create(self,dataset_id,run_id):
   dataset=self.datasets.get_by_id(dataset_id)
   if not dataset:raise ReportSourceNotFound("Dataset not found.")
   from app.models import AgentRun
   any_run=self.db.get(AgentRun,run_id)
-  if any_run and any_run.dataset_id!=dataset_id:raise ReportDatasetMismatch("Agent Run belongs to another Dataset.")
+  if any_run and any_run.dataset_id!=dataset_id:
+   if self.owner_user_id is not None:raise ReportSourceNotFound("Agent Run not found.")
+   raise ReportDatasetMismatch("Agent Run belongs to another Dataset.")
   run=self.runs.get(dataset_id,run_id)
   if not run:raise ReportSourceNotFound("Agent Run not found.")
   if run.status not in (AgentRunStatus.SUCCEEDED,AgentRunStatus.PARTIAL):raise ReportSourceNotReady("Only SUCCEEDED or PARTIAL Agent Runs can be reported.")
@@ -34,7 +36,9 @@ class ReportService:
    doc=ReportDocument(title=draft.title,executive_summary=draft.executive_summary,sections=sections,key_insights=insights.insights,limitations=list(dict.fromkeys(ev.limitations+draft.limitations)),methodology=methods,artifacts=arts,source_status=run.status.value,generated_at=datetime.now(timezone.utc));record.title=doc.title;record.executive_summary=doc.executive_summary;record.report_json=doc.model_dump(mode="json");record.status=ReportStatus.READY;record.insight_count=len(doc.key_insights);record.artifact_count=len(arts);record.evidence_truncated=ev.evidence_truncated;record.generation_time_ms=round((time.perf_counter()-started)*1000,3);self.db.commit();self.db.refresh(record);logger.info("report_id=%s dataset_id=%s agent_run_id=%s status=READY duration_ms=%s insight_count=%s artifact_count=%s",record.id,dataset_id,run_id,record.generation_time_ms,record.insight_count,record.artifact_count);return record
   except ReportError:raise
   except Exception as exc:record.status=ReportStatus.FAILED;record.error_code="REPORT_GENERATION_FAILED";record.error_message="Report generation failed.";self.db.commit();raise ReportInvalidOutput("Report provider returned invalid structured output.") from exc
- def list(self,dataset_id,page,page_size):return self.reports.list(dataset_id,page,page_size)
+ def list(self,dataset_id,page,page_size):
+  if not self.datasets.get_by_id(dataset_id):raise ReportSourceNotFound("Dataset not found.")
+  return self.reports.list(dataset_id,page,page_size)
  def get(self,dataset_id,report_id):
   x=self.reports.get(dataset_id,report_id)
   if not x:raise ReportNotFound("Report not found.")

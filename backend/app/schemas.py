@@ -57,6 +57,7 @@ class DatasetPreview(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     code: str = "BAD_REQUEST"
+    request_id: str | None = None
 
 
 class DatasetProfileRead(BaseModel):

@@ -12,10 +12,10 @@ from app.repositories import DatasetProfileRepository, DatasetRepository
 
 
 class DatasetProfileService:
-    def __init__(self, session: Session, settings: Settings) -> None:
+    def __init__(self, session: Session, settings: Settings, owner_user_id: str | None = None) -> None:
         self.session = session
         self.settings = settings
-        self.datasets = DatasetRepository(session)
+        self.datasets = DatasetRepository(session, owner_user_id)
         self.profiles = DatasetProfileRepository(session)
 
     def get(self, dataset_id: str) -> DatasetProfile:

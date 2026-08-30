@@ -14,6 +14,9 @@ venv/
 # Node
 node_modules/
 frontend/dist/
+frontend/coverage/
+backend/coverage.xml
+.coverage
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
@@ -28,3 +31,4 @@ Thumbs.db
 # Runtime data
 backend/data/uploads/*
 !backend/data/uploads/.gitkeep
+backend/data/exports/

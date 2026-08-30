@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 class NaturalLanguageSQLService:
-    def __init__(self, session: Session, settings: Settings, provider: LLMProvider) -> None:
+    def __init__(self, session: Session, settings: Settings, provider: LLMProvider, owner_user_id: str | None = None) -> None:
         self.session = session; self.settings = settings; self.provider = provider
-        self.datasets = DatasetRepository(session); self.profiles = DatasetProfileRepository(session); self.queries = AnalysisQueryRepository(session)
+        self.datasets = DatasetRepository(session, owner_user_id); self.profiles = DatasetProfileRepository(session); self.queries = AnalysisQueryRepository(session)
 
     def run(self, dataset_id: str, question: str) -> QueryResponse:
         dataset = self.datasets.get_by_id(dataset_id)

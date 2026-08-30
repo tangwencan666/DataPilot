@@ -20,10 +20,11 @@ ALLOWED_MIME_TYPES = {
 
 
 class DatasetService:
-    def __init__(self, session: Session, settings: Settings) -> None:
+    def __init__(self, session: Session, settings: Settings, owner_user_id: str | None = None) -> None:
         self.session = session
         self.settings = settings
-        self.repository = DatasetRepository(session)
+        self.owner_user_id = owner_user_id
+        self.repository = DatasetRepository(session, owner_user_id)
         self.upload_dir = settings.resolved_upload_dir
 
     async def upload(self, file: UploadFile) -> Dataset:
@@ -39,6 +40,11 @@ class DatasetService:
             raise InvalidFileError("文件不能为空")
         if len(content) > self.settings.max_upload_size:
             raise FileTooLargeError(f"文件不能超过 {self.settings.max_upload_mb} MB")
+        count, used_bytes = self.repository.usage()
+        if count >= self.settings.max_datasets_per_user:
+            raise InvalidFileError("Dataset 数量已达到账户上限")
+        if used_bytes + len(content) > self.settings.max_storage_bytes_per_user:
+            raise FileTooLargeError("账户存储空间不足")
 
         parsed = parse_dataset(content, file_type, self.settings.preview_row_limit)
         stored_filename = f"{uuid4().hex}{suffix}"
@@ -47,6 +53,7 @@ class DatasetService:
         if destination.parent != self.upload_dir:
             raise InvalidFileError("无效文件路径")
         dataset = Dataset(
+            owner_user_id=self.owner_user_id,
             name=Path(original_filename).stem[:255], original_filename=original_filename[:255], stored_filename=stored_filename,
             file_type=file_type, file_size=len(content), row_count=parsed.row_count, column_count=parsed.column_count,
             status=DatasetStatus.READY, metadata_json=parsed.metadata,

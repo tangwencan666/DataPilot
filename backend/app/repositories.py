@@ -5,8 +5,9 @@ from app.models import AgentRun, AgentRunStatus, AgentStepAttempt, AgentStepRun,
 
 
 class DatasetRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, owner_user_id: str | None = None) -> None:
         self.session = session
+        self.owner_user_id = owner_user_id
 
     def create(self, dataset: Dataset) -> Dataset:
         self.session.add(dataset)
@@ -14,12 +15,21 @@ class DatasetRepository:
         return dataset
 
     def get_by_id(self, dataset_id: str) -> Dataset | None:
-        return self.session.get(Dataset, dataset_id)
+        conditions = [Dataset.id == dataset_id]
+        if self.owner_user_id is not None:
+            conditions.append(Dataset.owner_user_id == self.owner_user_id)
+        return self.session.scalar(select(Dataset).where(*conditions))
 
     def list(self, page: int, page_size: int) -> tuple[list[Dataset], int]:
-        total = self.session.scalar(select(func.count()).select_from(Dataset)) or 0
-        statement = select(Dataset).order_by(Dataset.created_at.desc(), Dataset.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        condition = Dataset.owner_user_id == self.owner_user_id if self.owner_user_id is not None else True
+        total = self.session.scalar(select(func.count()).select_from(Dataset).where(condition)) or 0
+        statement = select(Dataset).where(condition).order_by(Dataset.created_at.desc(), Dataset.id.desc()).offset((page - 1) * page_size).limit(page_size)
         return list(self.session.scalars(statement)), total
+
+    def usage(self) -> tuple[int, int]:
+        condition = Dataset.owner_user_id == self.owner_user_id if self.owner_user_id is not None else True
+        row = self.session.execute(select(func.count(Dataset.id), func.coalesce(func.sum(Dataset.file_size), 0)).where(condition)).one()
+        return int(row[0]), int(row[1])
 
     def delete(self, dataset: Dataset) -> None:
         self.session.delete(dataset)
