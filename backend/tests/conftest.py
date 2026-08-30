@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -20,6 +20,7 @@ def upload_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def client(upload_dir: Path) -> Generator[TestClient, None, None]:
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    event.listen(engine, "connect", lambda connection, _: connection.execute("PRAGMA foreign_keys=ON"))
     testing_session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     Base.metadata.create_all(engine)
     settings = Settings(database_url="sqlite://", upload_dir=upload_dir, max_upload_mb=1, preview_row_limit=2)

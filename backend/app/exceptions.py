@@ -20,3 +20,11 @@ class DatasetParseError(DatasetError):
 
 class DatasetNotFoundError(DatasetError):
     status_code = 404
+
+
+class ProfileNotFoundError(DatasetError):
+    status_code = 404
+
+
+class ProfileGenerationError(DatasetError):
+    status_code = 422

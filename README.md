@@ -1,6 +1,6 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 2 — Dataset Management & Persistent Data Layer**
+**Current Stage: Stage 3 — Data Profiling & Data Quality Analysis**
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -13,8 +13,13 @@ DataPilot 当前提供结构化数据集的上传、持久化、列表、详情�
 - Excel 默认分析第一个 worksheet，并记录所有 sheet 名和当前选择
 - React Dataset List / Dataset Detail 界面
 - SQLAlchemy 2.x、psycopg 与 Alembic migration
+- 确定性 Data Profiling 与 Data Quality Score
+- Numeric、Categorical、Text、Datetime、Boolean 列画像
+- 缺失、重复、常量、高基数、异常值和无限值质量规则
+- 受限 Pearson Correlation Analysis
+- Profile 持久化、显式生成与刷新
 
-当前尚未实现 LLM、自然语言 SQL、Agent、Python Sandbox、Chart Agent 或 Report Agent。
+当前尚未实现 LLM、自然语言 SQL、Agent、Python Sandbox、Chart Agent 或 Report Agent。画像结果全部来自本地确定性程序计算。
 
 ## 项目结构
 
@@ -27,6 +32,8 @@ D:\毕业项目二
 │   │   ├── database.py
 │   │   ├── models.py
 │   │   ├── parsers.py
+│   │   ├── profiling
+│   │   ├── profile_service.py
 │   │   ├── repositories.py
 │   │   └── services.py
 │   ├── data\uploads
@@ -53,6 +60,9 @@ Copy-Item .env.example backend\.env
 DATABASE_URL=postgresql+psycopg://datapilot:datapilot@localhost:5432/datapilot
 MAX_UPLOAD_MB=20
 PREVIEW_ROW_LIMIT=20
+PROFILE_MAX_ROWS=100000
+PROFILE_SAMPLE_ROWS=50000
+PROFILE_TOP_VALUES=10
 UPLOAD_DIR=data/uploads
 ```
 
@@ -75,7 +85,7 @@ Set-Location 'D:\毕业项目二\backend'
 alembic upgrade head
 ```
 
-应用不会使用 `create_all` 代替 migration。首次 migration revision 为 `20260830_0001`。
+应用不会使用 `create_all` 代替 migration。Dataset migration 为 `20260830_0001`，DatasetProfile migration 为 `20260830_0002`。
 
 ## 启动后端
 
@@ -106,6 +116,8 @@ npm run dev
 - `GET /api/v1/datasets?page=1&page_size=20`：分页列表，按创建时间倒序
 - `GET /api/v1/datasets/{dataset_id}`：Dataset 详情
 - `GET /api/v1/datasets/{dataset_id}/preview`：字段统计与限量数据预览
+- `POST /api/v1/datasets/{dataset_id}/profile`：生成或刷新数据画像
+- `GET /api/v1/datasets/{dataset_id}/profile`：查询已持久化画像，不会自动生成
 - `DELETE /api/v1/datasets/{dataset_id}`：删除元数据与磁盘文件
 - `GET /api/v1/health`：服务健康检查
 
@@ -131,10 +143,26 @@ npm run build
 - 解析或数据库写入失败会清理不完整文件
 - 真实上传内容已由 `.gitignore` 排除
 
+## Profiling 与质量评分
+
+画像只读取 Dataset 记录对应的受管文件，不接受任意文件路径。每次生成只加载一次文件；超过 `PROFILE_MAX_ROWS` 时，使用固定 `random_state=42` 的可复现样本，并在结果中记录 `is_sampled`、`sampled_row_count`、`source_row_count` 和统计范围。
+
+质量分从 100 开始，使用确定性扣分：
+
+- 缺失比例最多影响 30 分
+- 重复比例最多影响 20 分
+- 每个全空字段扣 10 分，最多 30 分
+- 每个常量字段扣 2 分，最多 10 分
+- ERROR 问题扣 5 分、WARNING 问题扣 2 分，问题项合计最多扣 20 分
+- 最终分数限制在 0–100
+
+相关性仅针对非恒定 Numeric 字段计算 Pearson correlation；列数、阈值和最大返回 pair 数均由配置限制。
+
 ## 当前限制
 
 - 同步解析，状态模型已为未来异步处理预留 `UPLOADING / PROCESSING / READY / FAILED`
+- Profiling 当前同步执行，Profile 状态已预留 `PENDING / RUNNING / READY / FAILED`
 - XLSX 固定使用第一个 worksheet
 - CSV 当前按 UTF-8 解析
 - 数据文件保存在本机磁盘，尚无对象存储
-- 下一阶段规划为 **Stage 3 — Data Profiling**
+- 下一阶段规划为 **Stage 4 — Natural Language to SQL Foundation**

@@ -1,71 +1,50 @@
 import { ChangeEvent, useCallback, useEffect, useState } from 'react'
-import { Dataset, DatasetPreview, deleteDataset, getDataset, getDatasetPreview, listDatasets, uploadDataset } from './api/datasets'
+import { ApiError } from './api/client'
+import { ColumnProfile, Dataset, DatasetPreview, DatasetProfile, deleteDataset, generateProfile, getDataset, getDatasetPreview, getProfile, listDatasets, uploadDataset } from './api/datasets'
 
-const formatSize = (bytes: number) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+type Tab = 'overview' | 'quality' | 'columns' | 'correlations' | 'preview'
+const formatSize = (bytes: number) => bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`
 const formatDate = (value: string) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+const pct = (value: number) => `${(value * 100).toFixed(1)}%`
+
+function ProfileDetails({ column }: { column: ColumnProfile }) {
+  const numericKeys = ['min', 'max', 'mean', 'median', 'std', 'q1', 'q3', 'outlier_count', 'outlier_ratio', 'infinite_count']
+  return <div className="column-detail">
+    <div className="mini-facts"><span>Missing <b>{column.missing_count} ({pct(column.missing_ratio)})</b></span><span>Unique <b>{column.unique_count} ({pct(column.unique_ratio)})</b></span><span>Samples <b>{column.sample_values.map(String).join(', ') || '—'}</b></span></div>
+    {column.numeric && <div className="profile-grid">{numericKeys.map(key => <div key={key}><span>{key}</span><strong>{column.numeric?.[key] ?? '—'}</strong></div>)}</div>}
+    {column.categorical && <><p>Top values {column.categorical.is_high_cardinality && <em>High cardinality</em>}</p><div className="chips">{column.categorical.top_values.map(item => <span key={String(item.value)}>{String(item.value)} · {item.count} ({pct(item.ratio)})</span>)}</div></>}
+    {column.text && <div className="profile-grid"><div><span>Average length</span><strong>{column.text.average_length ?? '—'}</strong></div><div><span>Min length</span><strong>{column.text.min_length ?? '—'}</strong></div><div><span>Max length</span><strong>{column.text.max_length ?? '—'}</strong></div><div><span>Empty strings</span><strong>{column.text.empty_string_count}</strong></div></div>}
+    {column.datetime && <div className="profile-grid"><div><span>From</span><strong>{column.datetime.min_datetime ?? '—'}</strong></div><div><span>To</span><strong>{column.datetime.max_datetime ?? '—'}</strong></div><div><span>Range</span><strong>{column.datetime.range_days ?? '—'} days</strong></div></div>}
+    {column.boolean && <div className="profile-grid"><div><span>True</span><strong>{column.boolean.true_count} ({pct(column.boolean.true_ratio)})</strong></div><div><span>False</span><strong>{column.boolean.false_count} ({pct(column.boolean.false_ratio)})</strong></div></div>}
+  </div>
+}
 
 export default function App() {
-  const [datasets, setDatasets] = useState<Dataset[]>([])
-  const [selected, setSelected] = useState<Dataset | null>(null)
-  const [preview, setPreview] = useState<DatasetPreview | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    try { setDatasets((await listDatasets()).items); setError('') }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '无法加载数据集') }
-    finally { setLoading(false) }
-  }, [])
+  const [datasets, setDatasets] = useState<Dataset[]>([]); const [selected, setSelected] = useState<Dataset | null>(null)
+  const [preview, setPreview] = useState<DatasetPreview | null>(null); const [profile, setProfile] = useState<DatasetProfile | null>(null)
+  const [tab, setTab] = useState<Tab>('overview'); const [expanded, setExpanded] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true); const [uploading, setUploading] = useState(false); const [profiling, setProfiling] = useState(false)
+  const [message, setMessage] = useState(''); const [error, setError] = useState('')
+  const refresh = useCallback(async () => { setLoading(true); try { setDatasets((await listDatasets()).items); setError('') } catch (e) { setError(e instanceof Error ? e.message : '无法加载数据集') } finally { setLoading(false) } }, [])
   useEffect(() => { void refresh() }, [refresh])
 
-  async function upload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]; if (!file) return
-    setUploading(true); setError(''); setMessage('')
-    try { await uploadDataset(file); setMessage(`${file.name} 上传成功`); await refresh() }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '上传失败') }
-    finally { setUploading(false); event.target.value = '' }
-  }
+  async function upload(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; setUploading(true); setError(''); setMessage(''); try { await uploadDataset(file); setMessage(`${file.name} 上传成功`); await refresh() } catch (e) { setError(e instanceof Error ? e.message : '上传失败') } finally { setUploading(false); event.target.value = '' } }
+  async function view(dataset: Dataset) { setLoading(true); setError(''); try { const [detail, dataPreview] = await Promise.all([getDataset(dataset.id), getDatasetPreview(dataset.id)]); setSelected(detail); setPreview(dataPreview); setTab('overview'); try { setProfile(await getProfile(dataset.id)) } catch (e) { if (!(e instanceof ApiError && e.status === 404)) throw e; setProfile(null) } } catch (e) { setError(e instanceof Error ? e.message : '无法加载详情') } finally { setLoading(false) } }
+  async function createProfile() { if (!selected) return; setProfiling(true); setError(''); try { setProfile(await generateProfile(selected.id)); setTab('overview') } catch (e) { setError(e instanceof Error ? e.message : '画像生成失败'); try { setProfile(await getProfile(selected.id)) } catch { /* status remains unavailable */ } } finally { setProfiling(false) } }
+  async function remove(dataset: Dataset) { if (!window.confirm(`确定删除 ${dataset.name}？此操作会同时删除上传文件。`)) return; try { await deleteDataset(dataset.id); if (selected?.id === dataset.id) { setSelected(null); setPreview(null); setProfile(null) }; await refresh() } catch (e) { setError(e instanceof Error ? e.message : '删除失败') } }
+  const result = profile?.profile; const summary = result?.summary
 
-  async function view(dataset: Dataset) {
-    setLoading(true); setError('')
-    try {
-      const [detail, dataPreview] = await Promise.all([getDataset(dataset.id), getDatasetPreview(dataset.id)])
-      setSelected(detail); setPreview(dataPreview)
-    } catch (reason) { setError(reason instanceof Error ? reason.message : '无法加载详情') }
-    finally { setLoading(false) }
-  }
-
-  async function remove(dataset: Dataset) {
-    if (!window.confirm(`确定删除 ${dataset.name}？此操作会同时删除上传文件。`)) return
-    try { await deleteDataset(dataset.id); if (selected?.id === dataset.id) { setSelected(null); setPreview(null) }; await refresh() }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '删除失败') }
-  }
-
-  return <main className="shell">
-    <nav><button className="brand button-reset" onClick={() => { setSelected(null); setPreview(null) }}>DataPilot</button><span className="stage">Stage 2</span></nav>
-    {!selected ? <>
-      <section className="page-head">
-        <div><p className="eyebrow">DATASET MANAGEMENT</p><h1>Datasets</h1><p className="intro">上传并管理 CSV 或 Excel 数据集，查看结构、质量指标和数据样例。</p></div>
-        <label className={`upload ${uploading ? 'disabled' : ''}`}><input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={upload} disabled={uploading} />{uploading ? '正在上传…' : 'Upload Dataset'}</label>
-      </section>
-      {message && <p className="success">{message}</p>}{error && <p className="error">{error}</p>}
-      <section className="dataset-list">
-        <div className="list-title"><h2>All datasets</h2><span>{datasets.length} items</span></div>
-        {loading ? <p className="empty">正在加载…</p> : datasets.length === 0 ? <p className="empty">还没有数据集。上传 CSV 或 XLSX 文件开始使用。</p> :
-          <div className="table-wrap"><table><thead><tr><th>名称</th><th>类型</th><th>大小</th><th>规模</th><th>状态</th><th>创建时间</th><th></th></tr></thead><tbody>
-            {datasets.map(item => <tr key={item.id}><td><button className="name-link" onClick={() => void view(item)}>{item.name}</button><small>{item.original_filename}</small></td><td><span className="file-type">{item.file_type.toUpperCase()}</span></td><td>{formatSize(item.file_size)}</td><td>{item.row_count} × {item.column_count}</td><td><span className={`status ${item.status.toLowerCase()}`}>{item.status}</span></td><td>{formatDate(item.created_at)}</td><td className="actions"><button onClick={() => void view(item)}>View</button><button className="danger" onClick={() => void remove(item)}>Delete</button></td></tr>)}
-          </tbody></table></div>}
-      </section>
-    </> : <section className="detail">
-      <button className="back" onClick={() => { setSelected(null); setPreview(null) }}>← 返回 Datasets</button>
-      {error && <p className="error">{error}</p>}
-      <header><div><p className="eyebrow">DATASET DETAIL</p><h2>{selected.name}</h2><p>{selected.original_filename}</p></div><span className={`status ${selected.status.toLowerCase()}`}>{selected.status}</span></header>
-      <div className="facts"><div><span>File Type</span><strong>{selected.file_type.toUpperCase()}</strong></div><div><span>File Size</span><strong>{formatSize(selected.file_size)}</strong></div><div><span>Rows</span><strong>{selected.row_count}</strong></div><div><span>Columns</span><strong>{selected.column_count}</strong></div><div><span>Created</span><strong>{formatDate(selected.created_at)}</strong></div></div>
-      {preview && <><h3>Columns</h3><div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Missing</th><th>Unique</th></tr></thead><tbody>{preview.columns.map(column => <tr key={column.name}><td>{column.name}</td><td>{column.dtype}</td><td>{column.missing}</td><td>{column.unique}</td></tr>)}</tbody></table></div>
-      <h3>Data Preview <small>前 {preview.preview_limit} 行以内</small></h3><div className="table-wrap"><table><thead><tr>{preview.columns.map(column => <th key={column.name}>{column.name}</th>)}</tr></thead><tbody>{preview.preview_rows.map((row, index) => <tr key={index}>{preview.columns.map(column => <td key={column.name}>{String(row[column.name] ?? '—')}</td>)}</tr>)}</tbody></table></div></>}
-    </section>}
+  return <main className="shell"><nav><button className="brand button-reset" onClick={() => setSelected(null)}>DataPilot</button><span className="stage">Stage 3</span></nav>
+    {!selected ? <><section className="page-head"><div><p className="eyebrow">DATASET MANAGEMENT</p><h1>Datasets</h1><p className="intro">上传和管理数据集，生成可解释的数据画像与质量分析。</p></div><label className={`upload ${uploading ? 'disabled' : ''}`}><input type="file" accept=".csv,.xlsx" onChange={upload} disabled={uploading} />{uploading ? '正在上传…' : 'Upload Dataset'}</label></section>
+      {message && <p className="success">{message}</p>}{error && <p className="error">{error}</p>}<section className="dataset-list"><div className="list-title"><h2>All datasets</h2><span>{datasets.length} items</span></div>{loading ? <p className="empty">正在加载…</p> : datasets.length === 0 ? <p className="empty">还没有数据集。</p> : <div className="table-wrap"><table><thead><tr><th>名称</th><th>类型</th><th>大小</th><th>规模</th><th>状态</th><th>创建时间</th><th></th></tr></thead><tbody>{datasets.map(item => <tr key={item.id}><td><button className="name-link" onClick={() => void view(item)}>{item.name}</button><small>{item.original_filename}</small></td><td><span className="file-type">{item.file_type.toUpperCase()}</span></td><td>{formatSize(item.file_size)}</td><td>{item.row_count} × {item.column_count}</td><td><span className={`status ${item.status.toLowerCase()}`}>{item.status}</span></td><td>{formatDate(item.created_at)}</td><td className="actions"><button onClick={() => void view(item)}>View</button><button className="danger" onClick={() => void remove(item)}>Delete</button></td></tr>)}</tbody></table></div>}</section></> :
+      <section className="detail"><button className="back" onClick={() => { setSelected(null); setProfile(null) }}>← 返回 Datasets</button>{error && <p className="error">{error}</p>}<header><div><p className="eyebrow">DATASET DETAIL</p><h2>{selected.name}</h2><p>{selected.original_filename}</p></div><button className="profile-action" disabled={profiling} onClick={() => void createProfile()}>{profiling ? 'Profiling…' : profile ? 'Refresh Profile' : 'Generate Profile'}</button></header>
+      <div className="tabs">{(['overview','quality','columns','correlations','preview'] as Tab[]).map(item => <button className={tab === item ? 'active' : ''} key={item} onClick={() => setTab(item)}>{item}</button>)}</div>
+      {profile?.status === 'FAILED' && <p className="error">{profile.error_message}</p>}{!result && profile?.status !== 'FAILED' && tab !== 'preview' ? <p className="empty">尚未生成数据画像。点击 Generate Profile 开始分析。</p> : null}
+      {tab === 'overview' && result && summary && <><div className="score-card"><div><span>Data Quality Score</span><strong>{summary.quality_score}<small>/100</small></strong></div><p>基于缺失、重复、全空、常量字段和质量问题的确定性评分。</p></div>{result.sampling.is_sampled && <p className="sample-note">本画像基于 {result.sampling.sampled_row_count} / {result.sampling.source_row_count} 行固定随机样本，重复和缺失统计范围为样本。</p>}<div className="facts profile-facts"><div><span>Rows</span><strong>{summary.row_count}</strong></div><div><span>Columns</span><strong>{summary.column_count}</strong></div><div><span>Missing Cells</span><strong>{summary.missing_cell_count} · {pct(summary.missing_cell_ratio)}</strong></div><div><span>Duplicate Rows</span><strong>{summary.duplicate_row_count} · {pct(summary.duplicate_row_ratio)}</strong></div></div><h3>Semantic Types</h3><div className="type-counts">{['numeric','categorical','text','datetime','boolean'].map(type => <span key={type}>{type}<b>{summary[`${type}_column_count`]}</b></span>)}</div></>}
+      {tab === 'quality' && result && <><div className="quality-heading"><h3>Quality Issues</h3><span>{result.issues.length} detected</span></div>{result.issues.length === 0 ? <p className="empty">没有检测到已配置的质量问题。</p> : <div className="issues">{result.issues.map((issue, i) => <article key={`${issue.code}-${i}`}><span className={`severity ${issue.severity.toLowerCase()}`}>{issue.severity}</span><div><strong>{issue.title}</strong><p>{issue.description}</p><small>{issue.column ? `Column: ${issue.column} · ` : ''}{issue.metric}: {String(issue.value)}</small></div></article>)}</div>}</>}
+      {tab === 'columns' && result && <div className="columns-list">{result.columns.map(column => <article key={column.name}><button onClick={() => setExpanded(expanded === column.name ? null : column.name)}><span><strong>{column.name}</strong><small>{column.physical_dtype}</small></span><span className="semantic">{column.semantic_type}</span><span>{column.missing_count} missing</span><b>{expanded === column.name ? '−' : '+'}</b></button>{expanded === column.name && <ProfileDetails column={column} />}</article>)}</div>}
+      {tab === 'correlations' && result && (result.correlations.length ? <div className="table-wrap"><table><thead><tr><th>Column A</th><th>Column B</th><th>Correlation</th></tr></thead><tbody>{result.correlations.map(pair => <tr key={`${pair.column_a}-${pair.column_b}`}><td>{pair.column_a}</td><td>{pair.column_b}</td><td><strong>{pair.correlation.toFixed(3)}</strong></td></tr>)}</tbody></table></div> : <p className="empty">没有达到阈值的数值列相关性。</p>)}
+      {tab === 'preview' && preview && <><h3>Data Preview <small>前 {preview.preview_limit} 行以内</small></h3><div className="table-wrap"><table><thead><tr>{preview.columns.map(c => <th key={c.name}>{c.name}</th>)}</tr></thead><tbody>{preview.preview_rows.map((row,i) => <tr key={i}>{preview.columns.map(c => <td key={c.name}>{String(row[c.name] ?? '—')}</td>)}</tr>)}</tbody></table></div></>}
+      </section>}
   </main>
 }

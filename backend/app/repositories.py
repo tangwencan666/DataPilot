@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Dataset, DatasetStatus
+from app.models import Dataset, DatasetProfile, DatasetStatus, ProfileStatus
 
 
 class DatasetRepository:
@@ -28,3 +28,19 @@ class DatasetRepository:
         dataset.status = status
         self.session.flush()
         return dataset
+
+
+class DatasetProfileRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get_by_dataset_id(self, dataset_id: str) -> DatasetProfile | None:
+        return self.session.scalar(select(DatasetProfile).where(DatasetProfile.dataset_id == dataset_id))
+
+    def get_or_create(self, dataset_id: str) -> DatasetProfile:
+        profile = self.get_by_dataset_id(dataset_id)
+        if profile is None:
+            profile = DatasetProfile(dataset_id=dataset_id, status=ProfileStatus.PENDING)
+            self.session.add(profile)
+            self.session.flush()
+        return profile

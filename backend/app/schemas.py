@@ -3,7 +3,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import DatasetStatus
+from app.models import DatasetStatus, ProfileStatus
+from app.profiling.types import ProfileResult
 
 
 class HealthResponse(BaseModel):
@@ -55,3 +56,22 @@ class DatasetPreview(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class DatasetProfileRead(BaseModel):
+    id: str
+    dataset_id: str
+    status: ProfileStatus
+    profile_version: int
+    row_count: int
+    column_count: int
+    duplicate_row_count: int
+    duplicate_row_ratio: float
+    missing_cell_count: int
+    missing_cell_ratio: float
+    quality_score: float
+    generated_at: datetime | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+    profile: ProfileResult | None

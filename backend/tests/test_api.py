@@ -102,3 +102,45 @@ def test_delete_succeeds_when_file_is_missing(client: TestClient, upload_dir: Pa
     created = upload_csv(client)
     (upload_dir / created["stored_filename"]).unlink()
     assert client.delete(f"/api/v1/datasets/{created['id']}").status_code == 204
+
+
+def test_profile_generation_csv_and_refresh(client: TestClient) -> None:
+    created = upload_csv(client)
+    first = client.post(f"/api/v1/datasets/{created['id']}/profile")
+    fetched = client.get(f"/api/v1/datasets/{created['id']}/profile")
+    refreshed = client.post(f"/api/v1/datasets/{created['id']}/profile")
+    assert first.status_code == fetched.status_code == refreshed.status_code == 200
+    assert first.json()["status"] == "READY"
+    assert first.json()["profile"]["summary"]["row_count"] == 3
+    assert refreshed.json()["id"] == first.json()["id"]
+
+
+def test_dataset_delete_cascades_profile(client: TestClient) -> None:
+    created = upload_csv(client)
+    assert client.post(f"/api/v1/datasets/{created['id']}/profile").status_code == 200
+    assert client.delete(f"/api/v1/datasets/{created['id']}").status_code == 204
+    assert client.get(f"/api/v1/datasets/{created['id']}/profile").status_code == 404
+
+
+def test_profile_generation_xlsx(client: TestClient) -> None:
+    created = client.post("/api/v1/datasets", files={"file": ("book.xlsx", xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}).json()
+    response = client.post(f"/api/v1/datasets/{created['id']}/profile")
+    assert response.status_code == 200
+    assert response.json()["profile"]["summary"]["row_count"] == 2
+
+
+def test_profile_not_found_and_dataset_not_found(client: TestClient) -> None:
+    created = upload_csv(client)
+    assert client.get(f"/api/v1/datasets/{created['id']}/profile").status_code == 404
+    assert client.post("/api/v1/datasets/missing/profile").status_code == 404
+
+
+def test_profile_failure_is_persisted(client: TestClient, upload_dir: Path) -> None:
+    created = upload_csv(client)
+    (upload_dir / created["stored_filename"]).write_bytes(b"\xff\xfe")
+    response = client.post(f"/api/v1/datasets/{created['id']}/profile")
+    failed = client.get(f"/api/v1/datasets/{created['id']}/profile")
+    assert response.status_code == 422
+    assert failed.status_code == 200
+    assert failed.json()["status"] == "FAILED"
+    assert "traceback" not in failed.json()["error_message"].lower()
