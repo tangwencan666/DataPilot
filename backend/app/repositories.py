@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisQuery, AnalysisRun, AnalysisRunStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
+from app.models import AnalysisQuery, AnalysisRun, AnalysisRunStatus, Chart, ChartSourceType, ChartStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
 
 
 class DatasetRepository:
@@ -79,3 +79,22 @@ class AnalysisRunRepository:
         condition = AnalysisRun.dataset_id == dataset_id; total = self.session.scalar(select(func.count()).select_from(AnalysisRun).where(condition)) or 0
         statement = select(AnalysisRun).where(condition).order_by(AnalysisRun.created_at.desc(), AnalysisRun.id.desc()).offset((page-1)*page_size).limit(page_size)
         return list(self.session.scalars(statement)), total
+
+
+class ChartRepository:
+    def __init__(self, session: Session) -> None: self.session = session
+
+    def create(self, dataset_id: str, spec: dict) -> Chart:
+        chart = Chart(dataset_id=dataset_id, source_type=ChartSourceType.DATASET, chart_type=spec["type"], title=spec["title"], spec_json=spec, status=ChartStatus.PENDING)
+        self.session.add(chart); self.session.flush(); return chart
+
+    def get(self, dataset_id: str, chart_id: str) -> Chart | None:
+        return self.session.scalar(select(Chart).where(Chart.dataset_id == dataset_id, Chart.id == chart_id))
+
+    def list(self, dataset_id: str, page: int, page_size: int) -> tuple[list[Chart], int]:
+        condition = Chart.dataset_id == dataset_id
+        total = self.session.scalar(select(func.count()).select_from(Chart).where(condition)) or 0
+        stmt = select(Chart).where(condition).order_by(Chart.created_at.desc(), Chart.id.desc()).offset((page-1)*page_size).limit(page_size)
+        return list(self.session.scalars(stmt)), total
+
+    def delete(self, chart: Chart) -> None: self.session.delete(chart)

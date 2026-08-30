@@ -42,6 +42,19 @@ class AnalysisRunStatus(str, enum.Enum):
     TIMED_OUT = "TIMED_OUT"
 
 
+class ChartStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    GENERATING = "GENERATING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
+class ChartSourceType(str, enum.Enum):
+    DATASET = "DATASET"
+    QUERY = "QUERY"
+    ANALYSIS = "ANALYSIS"
+
+
 class Dataset(Base):
     __tablename__ = "datasets"
 
@@ -111,6 +124,27 @@ class AnalysisRun(Base):
     input_row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     execution_time_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class Chart(Base):
+    __tablename__ = "charts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    dataset_id: Mapped[str] = mapped_column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_type: Mapped[ChartSourceType] = mapped_column(Enum(ChartSourceType, name="chart_source_type", native_enum=False), nullable=False)
+    source_reference_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    chart_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    spec_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    option_json: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
+    status: Mapped[ChartStatus] = mapped_column(Enum(ChartStatus, name="chart_status", native_enum=False), nullable=False, default=ChartStatus.PENDING)
+    source_row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rendered_point_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sampled: Mapped[bool] = mapped_column(nullable=False, default=False)
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

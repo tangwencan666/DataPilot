@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     analysis_max_sort_columns: int = 3
     analysis_timeout_seconds: float = 15
     analysis_max_top_values: int = 100
+    chart_max_points: int = 5_000
+    chart_max_series: int = 20
+    chart_max_categories: int = 100
+    chart_max_pie_slices: int = 12
+    chart_max_histogram_bins: int = 100
+    chart_max_title_length: int = 200
+    chart_max_option_bytes: int = 1_000_000
+    chart_max_result_rows: int = 5_000
     allowed_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

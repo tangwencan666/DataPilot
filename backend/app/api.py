@@ -13,6 +13,8 @@ from app.query.service import NaturalLanguageSQLService, query_read
 from app.analysis.schemas import AnalysisListResponse, AnalysisPlan, AnalysisResponse, AnalysisRunRead
 from app.analysis.service import StructuredAnalysisService, run_read
 from app.analysis.process import AnalysisProcessRunner
+from app.charts.schemas import ChartListResponse, ChartRead, ChartResult, ChartSpec
+from app.charts.service import ChartService, chart_read
 
 router = APIRouter()
 
@@ -39,6 +41,9 @@ def get_analysis_runner(settings: Settings = Depends(get_settings)) -> AnalysisP
 
 def analysis_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings), runner: AnalysisProcessRunner = Depends(get_analysis_runner)) -> StructuredAnalysisService:
     return StructuredAnalysisService(session, settings, runner)
+
+def chart_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> ChartService:
+    return ChartService(session, settings)
 
 
 def profile_response(profile) -> DatasetProfileRead:
@@ -120,6 +125,22 @@ def list_dataset_analyses(dataset_id: str, page: int = Query(1, ge=1), page_size
 @router.get("/datasets/{dataset_id}/analyses/{analysis_id}", response_model=AnalysisRunRead)
 def get_dataset_analysis(dataset_id: str, analysis_id: str, service: StructuredAnalysisService = Depends(analysis_service_dependency)) -> AnalysisRunRead:
     return run_read(service.get(dataset_id,analysis_id))
+
+@router.post("/datasets/{dataset_id}/charts", response_model=ChartResult, status_code=status.HTTP_201_CREATED)
+def create_dataset_chart(dataset_id: str, spec: ChartSpec, service: ChartService = Depends(chart_service_dependency)) -> ChartResult:
+    return service.create(dataset_id,spec)
+
+@router.get("/datasets/{dataset_id}/charts", response_model=ChartListResponse)
+def list_dataset_charts(dataset_id: str, page: int=Query(1,ge=1), page_size: int=Query(20,ge=1,le=100), service: ChartService=Depends(chart_service_dependency)) -> ChartListResponse:
+    items,total=service.list(dataset_id,page,page_size); return ChartListResponse(items=[chart_read(x) for x in items],total=total,page=page,page_size=page_size)
+
+@router.get("/datasets/{dataset_id}/charts/{chart_id}", response_model=ChartRead)
+def get_dataset_chart(dataset_id: str, chart_id: str, service: ChartService=Depends(chart_service_dependency)) -> ChartRead:
+    return chart_read(service.get(dataset_id,chart_id))
+
+@router.delete("/datasets/{dataset_id}/charts/{chart_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_dataset_chart(dataset_id: str, chart_id: str, service: ChartService=Depends(chart_service_dependency)) -> Response:
+    service.delete(dataset_id,chart_id); return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)

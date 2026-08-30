@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router
@@ -26,8 +26,9 @@ def dataset_error_handler(_, exc: DatasetError) -> JSONResponse:
 
 
 @app.exception_handler(RequestValidationError)
-def request_validation_error_handler(_, exc: RequestValidationError) -> JSONResponse:
-    return JSONResponse(status_code=422, content=ErrorResponse(detail="Request validation failed.", code="VALIDATION_ERROR").model_dump())
+def request_validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    code = "CHART_VALIDATION_FAILED" if "/charts" in request.url.path else "VALIDATION_ERROR"
+    return JSONResponse(status_code=422, content=ErrorResponse(detail="Request validation failed.", code=code).model_dump())
 
 
 @app.get("/", include_in_schema=False)

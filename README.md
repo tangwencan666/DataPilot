@@ -1,6 +1,6 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 5 — Python Analysis Tool Foundation**
+**Current Stage: Stage 6 — Chart & Visualization Tool**
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -26,8 +26,11 @@ DataPilot 当前提供结构化数据集的上传、持久化、列表、详情�
 - Structured Python Analysis Tool（Controlled Pandas Operations）
 - 强类型 Operation Pipeline、Analysis History 与 Execution Trace
 - GroupBy、Filtering、Sorting、Correlation、Value Counts、Descriptive Statistics、Time Series 与 Derived Columns
+- Structured Chart Tool：Bar、Line、Area、Pie、Scatter、Histogram 与 Boxplot
+- 后端聚合、时间分桶、统计、确定性采样与安全 ECharts option 生成
+- Charts Tab、Create Chart、Chart Gallery、Chart Detail 与 Chart 持久化
 
-当前已支持受控的结构化 Python/Pandas 分析，但这不是 arbitrary Python sandbox。尚未实现 Agent、Planner、LangGraph、LLM-generated Python、Charts 或 Reports。
+Stage 5 的 Structured Analysis Tool 与 Stage 6 的 Structured Visualization Tool 都是未来 Agent 可调用的受控工具。当前 ChartSpec 由程序或用户通过结构化表单生成；尚未实现 Planner Agent、LLM 自动选图或 Report Agent。
 
 ## 项目结构
 
@@ -44,6 +47,7 @@ D:\毕业项目二
 │   │   ├── profile_service.py
 │   │   ├── query
 │   │   ├── analysis
+│   │   ├── charts
 │   │   ├── repositories.py
 │   │   └── services.py
 │   ├── data\uploads
@@ -90,6 +94,14 @@ ANALYSIS_MAX_METRICS=10
 ANALYSIS_MAX_SORT_COLUMNS=3
 ANALYSIS_TIMEOUT_SECONDS=15
 ANALYSIS_MAX_TOP_VALUES=100
+CHART_MAX_POINTS=5000
+CHART_MAX_SERIES=20
+CHART_MAX_CATEGORIES=100
+CHART_MAX_PIE_SLICES=12
+CHART_MAX_HISTOGRAM_BINS=100
+CHART_MAX_TITLE_LENGTH=200
+CHART_MAX_OPTION_BYTES=1000000
+CHART_MAX_RESULT_ROWS=5000
 UPLOAD_DIR=data/uploads
 ```
 
@@ -112,7 +124,7 @@ Set-Location 'D:\毕业项目二\backend'
 alembic upgrade head
 ```
 
-应用不会使用 `create_all` 代替 migration。AnalysisRun migration 为 `20260830_0004`。
+应用不会使用 `create_all` 代替 migration。Chart migration 为 `20260830_0005`。
 
 ## 启动后端
 
@@ -151,6 +163,10 @@ npm run dev
 - `POST /api/v1/datasets/{dataset_id}/analyses`：执行强类型结构化 AnalysisPlan
 - `GET /api/v1/datasets/{dataset_id}/analyses`：分页 Analysis History
 - `GET /api/v1/datasets/{dataset_id}/analyses/{analysis_id}`：Analysis metadata
+- `POST /api/v1/datasets/{dataset_id}/charts`：验证 ChartSpec、准备数据、生成并保存图表
+- `GET /api/v1/datasets/{dataset_id}/charts`：分页 Chart Gallery
+- `GET /api/v1/datasets/{dataset_id}/charts/{chart_id}`：Chart metadata 与安全 option
+- `DELETE /api/v1/datasets/{dataset_id}/charts/{chart_id}`：删除图表记录
 - `DELETE /api/v1/datasets/{dataset_id}`：删除元数据与磁盘文件
 - `GET /api/v1/health`：服务健康检查
 
@@ -217,6 +233,14 @@ Stage 5 使用 Pydantic discriminated-union 定义的 Operation DSL，而不是 
 大数据策略不会偷偷产生错误全量结论：仅 descriptive/correlation 允许确定性 sample；涉及 SUM、GroupBy、Filter 等全量操作会返回 `ANALYSIS_DATASET_TOO_LARGE`。超大 XLSX 因读取前无法低成本抽样而直接拒绝。结果行数和 cells 会安全截断，并明确 `truncated`。
 
 当前保护是结构化能力限制、进程隔离和应用级资源上限，不是完整 OS/container memory sandbox。生产级 arbitrary Python 必须放入独立 container 或 microVM，并配置 OS resource quotas。
+
+## Structured Chart Tool 与 ECharts 安全
+
+Chart 创建链路为 `Structured ChartSpec → Pydantic discriminated-union validation → server-side data preparation → safe option builder → ECharts rendering`。当前来源为可复现的 `DATASET` specification；Stage 4/5 没有持久化完整结果，因此不会伪装成可重建任意历史 Query/Analysis 结果。
+
+后端完成 grouping、allowlist aggregation、sorting、limit、date bucketing、histogram 和 boxplot 统计。前端只渲染已验证 option，不执行聚合。Scatter 超过 5000 点时用 `random_state=42` 确定性采样并记录源点数、渲染点数和 sampled；Bar/Line 优先完整聚合，不以抽样改变统计结论。Series、category、pie slice、histogram bin、title、结果规模与 option bytes 均有配置上限。
+
+模型或用户不能提交 raw ECharts option。Schema 使用 `extra=forbid`，Option Builder 只产生 title、tooltip、legend、grid、axes 和内建 bar/line/pie/scatter/boxplot series；不接受 `eval`、`new Function`、callback、formatter function string、HTML、script、custom renderer 或任意 JavaScript。未来正确链路仍是 `LLM output → ChartSpec → validation → Safe Option Builder`，而不是 `LLM → raw JavaScript`。
 
 ## 当前限制
 
