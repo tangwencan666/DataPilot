@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     chart_max_title_length: int = 200
     chart_max_option_bytes: int = 1_000_000
     chart_max_result_rows: int = 5_000
+    agent_max_steps: int = 8
+    agent_max_context_columns: int = 100
+    agent_max_sample_values: int = 3
+    agent_max_quality_issues: int = 20
+    agent_max_correlations: int = 20
+    agent_max_context_chars: int = 30_000
+    agent_max_intermediate_rows: int = 100
+    agent_max_intermediate_cells: int = 5_000
+    agent_max_final_findings: int = 10
+    agent_timeout_seconds: float = 60
     allowed_origins: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

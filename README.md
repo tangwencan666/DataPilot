@@ -1,6 +1,6 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 6 — Chart & Visualization Tool**
+**Current Stage: Stage 7 — Planner Agent Foundation**
 
 DataPilot 当前提供结构化数据集的上传、持久化、列表、详情、预览和删除能力。PostgreSQL 保存 Dataset 元数据，原始 CSV/XLSX 文件保存在项目管理的上传目录中。
 
@@ -29,8 +29,12 @@ DataPilot 当前提供结构化数据集的上传、持久化、列表、详情�
 - Structured Chart Tool：Bar、Line、Area、Pie、Scatter、Histogram 与 Boxplot
 - 后端聚合、时间分桶、统计、确定性采样与安全 ECharts option 生成
 - Charts Tab、Create Chart、Chart Gallery、Chart Detail 与 Chart 持久化
+- Planner Agent、严格 Structured AgentPlan 与 DAG validation
+- SQL / Analysis / Chart Tool Registry 与顺序执行轨迹
+- AgentRun / AgentStepRun 历史、Artifact 引用与结构化 Final Synthesis
+- Dataset Detail AI Analyst、Plan UI、Step Details 与 Final Answer
 
-Stage 5 的 Structured Analysis Tool 与 Stage 6 的 Structured Visualization Tool 都是未来 Agent 可调用的受控工具。当前 ChartSpec 由程序或用户通过结构化表单生成；尚未实现 Planner Agent、LLM 自动选图或 Report Agent。
+Stage 7 已提供一次性 Plan-then-Execute Planner Agent。它不是无限 ReAct loop、self-correcting Agent 或 Multi-Agent system，也没有 Report Agent。
 
 ## 项目结构
 
@@ -48,6 +52,7 @@ D:\毕业项目二
 │   │   ├── query
 │   │   ├── analysis
 │   │   ├── charts
+│   │   ├── agents
 │   │   ├── repositories.py
 │   │   └── services.py
 │   ├── data\uploads
@@ -102,6 +107,13 @@ CHART_MAX_HISTOGRAM_BINS=100
 CHART_MAX_TITLE_LENGTH=200
 CHART_MAX_OPTION_BYTES=1000000
 CHART_MAX_RESULT_ROWS=5000
+AGENT_MAX_STEPS=8
+AGENT_MAX_CONTEXT_COLUMNS=100
+AGENT_MAX_CONTEXT_CHARS=30000
+AGENT_MAX_INTERMEDIATE_ROWS=100
+AGENT_MAX_INTERMEDIATE_CELLS=5000
+AGENT_MAX_FINAL_FINDINGS=10
+AGENT_TIMEOUT_SECONDS=60
 UPLOAD_DIR=data/uploads
 ```
 
@@ -124,7 +136,7 @@ Set-Location 'D:\毕业项目二\backend'
 alembic upgrade head
 ```
 
-应用不会使用 `create_all` 代替 migration。Chart migration 为 `20260830_0005`。
+应用不会使用 `create_all` 代替 migration。AgentRun / AgentStepRun migration 为 `20260830_0006`。
 
 ## 启动后端
 
@@ -167,6 +179,9 @@ npm run dev
 - `GET /api/v1/datasets/{dataset_id}/charts`：分页 Chart Gallery
 - `GET /api/v1/datasets/{dataset_id}/charts/{chart_id}`：Chart metadata 与安全 option
 - `DELETE /api/v1/datasets/{dataset_id}/charts/{chart_id}`：删除图表记录
+- `POST /api/v1/datasets/{dataset_id}/agent-runs`：规划、验证并执行一次 Agent Run
+- `GET /api/v1/datasets/{dataset_id}/agent-runs`：分页 Agent History
+- `GET /api/v1/datasets/{dataset_id}/agent-runs/{agent_run_id}`：Agent Run、Steps 与 Artifacts
 - `DELETE /api/v1/datasets/{dataset_id}`：删除元数据与磁盘文件
 - `GET /api/v1/health`：服务健康检查
 
@@ -241,6 +256,31 @@ Chart 创建链路为 `Structured ChartSpec → Pydantic discriminated-union val
 后端完成 grouping、allowlist aggregation、sorting、limit、date bucketing、histogram 和 boxplot 统计。前端只渲染已验证 option，不执行聚合。Scatter 超过 5000 点时用 `random_state=42` 确定性采样并记录源点数、渲染点数和 sampled；Bar/Line 优先完整聚合，不以抽样改变统计结论。Series、category、pie slice、histogram bin、title、结果规模与 option bytes 均有配置上限。
 
 模型或用户不能提交 raw ECharts option。Schema 使用 `extra=forbid`，Option Builder 只产生 title、tooltip、legend、grid、axes 和内建 bar/line/pie/scatter/boxplot series；不接受 `eval`、`new Function`、callback、formatter function string、HTML、script、custom renderer 或任意 JavaScript。未来正确链路仍是 `LLM output → ChartSpec → validation → Safe Option Builder`，而不是 `LLM → raw JavaScript`。
+
+## Planner Agent Foundation
+
+```text
+User Question
+  ↓
+Bounded Dataset/Profile Context
+  ↓
+Planner → Structured AgentPlan → DAG / schema / column validation
+  ↓
+Tool Registry
+  ├─ SQL Tool → Stage 4 SQL generator → sqlglot validator → DuckDB
+  ├─ Analysis Tool → Stage 5 AnalysisPlan → isolated controlled executor
+  └─ Chart Tool → Stage 6 ChartSpec → safe option builder
+  ↓
+Bounded Execution Trace → Structured Final Synthesizer
+```
+
+Planner 只获得 Dataset 名称与规模、确定性截断的字段/画像摘要、质量问题、相关性以及 Tool 能力说明；不会获得完整数据、受管文件路径、数据库连接、API Key 或 Authorization header。默认最多 100 个 context columns、每列 3 个 sample values、20 个质量问题、20 个 correlations 和 30000 字符，并记录 `context_truncated` metadata。
+
+AgentPlan 是严格 tool-specific discriminated union。SQL step 只能提交自然语言子问题，不能提交 SQL；Analysis 和 Chart step 必须分别通过原有 DSL。Validator 检查最大 8 步、唯一 id、只引用先前步骤的依赖、DAG、字段存在性、基础语义类型及 code/path/network injection。Runtime 只从显式 Registry 获取 SQL/Analysis/Chart adapter，没有 shell、file、browser、HTTP 或 arbitrary Python tool，也没有 `unsafe` / `skip_validation` / `trusted_agent` 绕过入口。
+
+Runtime 只执行一次完整计划，不在 observation 后调用 LLM 重新规划。失败步骤的 dependents 标记为 `SKIPPED`，独立步骤仍可运行；有有效结果时为 `PARTIAL`，没有有效结果时为 `FAILED`。总 deadline 为 60 秒且只在步骤间启动检查，正在运行的 SQL/Analysis Tool 继续受各自 timeout 控制。中间结果最多保留 100 rows / 5000 cells，数据库只保存受限摘要和 artifact id，不保存巨大结果或 chain-of-thought。
+
+Final Synthesizer 只接收原始问题、planner summary 和受限 step summaries，输出 `answer`、`key_findings`、`limitations`、`used_tools` 与 artifacts。日志记录 run/dataset/step/tool/status/duration，不记录 secrets 或完整 Dataset。未配置 LLM 时只有 Agent API 返回 `AGENT_LLM_NOT_CONFIGURED`，Stage 1–6 功能保持可用。
 
 ## 当前限制
 

@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import AnalysisQuery, AnalysisRun, AnalysisRunStatus, Chart, ChartSourceType, ChartStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
+from app.models import AgentRun, AgentRunStatus, AgentStepRun, AgentStepStatus, AnalysisQuery, AnalysisRun, AnalysisRunStatus, Chart, ChartSourceType, ChartStatus, Dataset, DatasetProfile, DatasetStatus, ProfileStatus, QueryStatus
 
 
 class DatasetRepository:
@@ -98,3 +98,15 @@ class ChartRepository:
         return list(self.session.scalars(stmt)), total
 
     def delete(self, chart: Chart) -> None: self.session.delete(chart)
+
+class AgentRunRepository:
+    def __init__(self,session:Session)->None:self.session=session
+    def create(self,dataset_id:str,question:str)->AgentRun:
+        record=AgentRun(dataset_id=dataset_id,user_question=question,status=AgentRunStatus.PENDING,final_summary_json={},context_metadata_json={});self.session.add(record);self.session.flush();return record
+    def get(self,dataset_id:str,run_id:str)->AgentRun|None:return self.session.scalar(select(AgentRun).where(AgentRun.dataset_id==dataset_id,AgentRun.id==run_id))
+    def list(self,dataset_id:str,page:int,page_size:int)->tuple[list[AgentRun],int]:
+        condition=AgentRun.dataset_id==dataset_id;total=self.session.scalar(select(func.count()).select_from(AgentRun).where(condition)) or 0
+        stmt=select(AgentRun).where(condition).order_by(AgentRun.created_at.desc(),AgentRun.id.desc()).offset((page-1)*page_size).limit(page_size);return list(self.session.scalars(stmt)),total
+    def create_step(self,run_id:str,step_id:str,sequence:int,tool:str,purpose:str,input_summary:dict)->AgentStepRun:
+        item=AgentStepRun(agent_run_id=run_id,step_id=step_id,sequence=sequence,tool_name=tool,purpose=purpose,status=AgentStepStatus.PENDING,input_summary_json=input_summary,output_summary_json={});self.session.add(item);self.session.flush();return item
+    def steps(self,run_id:str):return list(self.session.scalars(select(AgentStepRun).where(AgentStepRun.agent_run_id==run_id).order_by(AgentStepRun.sequence)))

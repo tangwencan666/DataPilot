@@ -1,0 +1,9 @@
+import {apiRequest} from './client'
+export type AgentStep={id:string;step_id:string;sequence:number;tool_name:'SQL'|'ANALYSIS'|'CHART';purpose:string;status:'PENDING'|'RUNNING'|'SUCCEEDED'|'FAILED'|'SKIPPED';input_summary_json:Record<string,unknown>;output_summary_json:Record<string,unknown>;artifact_type:string|null;artifact_id:string|null;execution_time_ms:number|null;error_code:string|null;error_message:string|null;created_at:string;updated_at:string}
+export type AgentRun={id:string;dataset_id:string;user_question:string;goal:string|null;status:'PENDING'|'PLANNING'|'VALIDATING'|'RUNNING'|'SUCCEEDED'|'FAILED'|'PARTIAL';planner_summary:string|null;step_count:number;completed_step_count:number;final_summary_json:Record<string,unknown>;error_code:string|null;error_message:string|null;context_metadata_json:Record<string,unknown>;created_at:string;updated_at:string;steps:AgentStep[]}
+export type AgentPlan={goal:string;summary:string;steps:Array<{id:string;tool:string;purpose:string;depends_on:string[];expected_output:string}>}
+export type AgentFinal={answer:string;key_findings:string[];limitations:string[];used_tools:string[];artifacts:Array<{type:string;id:string;step_id:string}>}
+export type AgentResponse={run:AgentRun;plan:AgentPlan|null;final:AgentFinal|null}
+export const createAgentRun=(datasetId:string,question:string)=>apiRequest<AgentResponse>(`/datasets/${datasetId}/agent-runs`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})})
+export const listAgentRuns=(datasetId:string)=>apiRequest<{items:AgentRun[];total:number;page:number;page_size:number}>(`/datasets/${datasetId}/agent-runs`)
+export const getAgentRun=(datasetId:string,runId:string)=>apiRequest<AgentRun>(`/datasets/${datasetId}/agent-runs/${runId}`)

@@ -15,6 +15,10 @@ from app.analysis.service import StructuredAnalysisService, run_read
 from app.analysis.process import AnalysisProcessRunner
 from app.charts.schemas import ChartListResponse, ChartRead, ChartResult, ChartSpec
 from app.charts.service import ChartService, chart_read
+from app.agents.runtime import AgentRuntime
+from app.agents.schemas import AgentCreate,AgentRunList,AgentRunRead,AgentRunResponse
+from app.agents.service import PlannerAgentService
+from app.agents.tools import AnalysisToolAdapter,ChartToolAdapter,SQLToolAdapter,ToolRegistry
 
 router = APIRouter()
 
@@ -44,6 +48,11 @@ def analysis_service_dependency(session: Session = Depends(get_db), settings: Se
 
 def chart_service_dependency(session: Session = Depends(get_db), settings: Settings = Depends(get_settings)) -> ChartService:
     return ChartService(session, settings)
+
+def agent_service_dependency(session:Session=Depends(get_db),settings:Settings=Depends(get_settings),provider:LLMProvider=Depends(get_llm_provider),runner:AnalysisProcessRunner=Depends(get_analysis_runner))->PlannerAgentService:
+    query_service=NaturalLanguageSQLService(session,settings,provider);analysis_service=StructuredAnalysisService(session,settings,runner);chart_service=ChartService(session,settings)
+    registry=ToolRegistry([SQLToolAdapter(query_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),AnalysisToolAdapter(analysis_service,settings.agent_max_intermediate_rows,settings.agent_max_intermediate_cells),ChartToolAdapter(chart_service)])
+    return PlannerAgentService(session,settings,provider,lambda:AgentRuntime(session,settings,registry,provider))
 
 
 def profile_response(profile) -> DatasetProfileRead:
@@ -141,6 +150,16 @@ def get_dataset_chart(dataset_id: str, chart_id: str, service: ChartService=Depe
 @router.delete("/datasets/{dataset_id}/charts/{chart_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_dataset_chart(dataset_id: str, chart_id: str, service: ChartService=Depends(chart_service_dependency)) -> Response:
     service.delete(dataset_id,chart_id); return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.post("/datasets/{dataset_id}/agent-runs",response_model=AgentRunResponse,status_code=status.HTTP_201_CREATED)
+def create_agent_run(dataset_id:str,payload:AgentCreate,service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunResponse:return service.run(dataset_id,payload.question)
+
+@router.get("/datasets/{dataset_id}/agent-runs",response_model=AgentRunList)
+def list_agent_runs(dataset_id:str,page:int=Query(1,ge=1),page_size:int=Query(20,ge=1,le=100),service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunList:
+    items,total=service.list(dataset_id,page,page_size);return AgentRunList(items=[service.read(x) for x in items],total=total,page=page,page_size=page_size)
+
+@router.get("/datasets/{dataset_id}/agent-runs/{agent_run_id}",response_model=AgentRunRead)
+def get_agent_run(dataset_id:str,agent_run_id:str,service:PlannerAgentService=Depends(agent_service_dependency))->AgentRunRead:return service.read(service.get(dataset_id,agent_run_id))
 
 
 @router.delete("/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
