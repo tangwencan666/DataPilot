@@ -1,6 +1,10 @@
 # DataPilot — AI 智能数据分析 Agent 平台
 
-**Current Stage: Stage 10 — Production Hardening & Deployment Foundation** · **Version 0.9.0**
+**Current Stage: Stage 10 — Production Hardening & Deployment Foundation** · **Version 1.0.0**
+
+## Release verification
+
+DataPilot 1.0.0 core release verification completed on 2026-09-03 using Docker Desktop 4.88.0 / Engine 29.7.2 on WSL2. Both application images built successfully; PostgreSQL 16.15 completed the real Alembic `0001 → 0009` chain and `0009 → 0008 → 0009` round-trip; Docker Compose startup, authentication, ownership isolation, Dataset/Profile/Analysis/Chart HTTP flows, metrics, request IDs, security headers, volume persistence, and delete cleanup were verified against real containers. Real LLM/Report generation was not executed because no LLM credentials were configured.
 
 Stage 1–9 的功能路线已完成；Stage 10 增加 PostgreSQL/Docker 部署栈、JWT 身份认证、Dataset 账户隔离、限流、上传配额、请求 ID、结构化请求日志、Prometheus 指标、CI、前端质量门禁及安全文档。这里的准确定位是 **production-hardening foundation / deployment-ready development stack**，不是 enterprise-ready 或 fully sandboxed。
 

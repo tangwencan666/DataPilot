@@ -24,7 +24,7 @@ from fastapi import Depends
 from app.rate_limit import limiter
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, version="0.9.0")
+app = FastAPI(title=settings.app_name, version="1.0.0")
 app.state.limiter = limiter
 
 
@@ -48,7 +48,9 @@ app.include_router(router, prefix="/api/v1")
 
 REQUESTS = Counter("datapilot_http_requests_total", "HTTP requests", ["method", "path", "status"])
 LATENCY = Histogram("datapilot_http_request_duration_seconds", "HTTP request latency", ["method", "path"])
-logger = logging.getLogger("datapilot.request")
+# Reuse Uvicorn's configured production handler so request metadata is emitted
+# both locally and inside the container without logging request bodies/secrets.
+logger = logging.getLogger("uvicorn.error")
 
 
 @app.middleware("http")
