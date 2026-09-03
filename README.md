@@ -98,7 +98,10 @@ The synthetic, PII-free [sales dataset](demo/sales_demo.csv) contains `date`, `r
 
 - Follow the [5–8 minute demo guide](docs/demo-guide.md).
 - Use the prepared [demo questions](demo/demo_questions.md).
-- Follow the [screenshot checklist](docs/screenshots/README.md); no fake UI screenshots are included.
+
+## Screenshots
+
+Screenshots will be added from the verified 1.0.0 UI. Until then, the [screenshot checklist](docs/screenshots/README.md) documents the real views to capture; no generated UI images or broken screenshot links are included.
 
 ## Technology stack
 
@@ -182,7 +185,8 @@ No delivery dates are implied. The implementation remains a bounded single-agent
 - [Graduation defense](docs/graduation-defense.md) · [Interview guide](docs/interview-guide.md)
 - [Resume material](docs/resume-project.md) · [Project highlights](docs/project-highlights.md)
 - [Graduation summary](docs/graduation-summary.md) · [Release notes](docs/release-notes-1.0.0.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 
-No license has been selected. Before inviting public reuse or redistribution, the repository owner should choose and add an appropriate `LICENSE` file.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
