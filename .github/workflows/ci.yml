@@ -24,7 +24,7 @@ jobs:
       - run: ruff format --check app/auth.py app/config.py app/main.py app/rate_limit.py tests/test_production_foundation.py
       - run: alembic upgrade head
       - run: python ../scripts/verify_postgres_migrations.py
-      - run: pytest -q
+      - run: python -m pytest -q
   frontend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: frontend } }
