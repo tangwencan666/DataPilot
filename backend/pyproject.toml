@@ -3,6 +3,6 @@ target-version = "py312"
 line-length = 140
 
 [tool.ruff.lint]
-# The legacy Stage 1-9 code intentionally uses compact formatting. Stage 10 gates
+# Existing modules use compact formatting. The release quality gate catches
 # syntax/runtime hazards without triggering a risky whole-repository rewrite.
 select = ["E9", "F63", "F7", "F82"]

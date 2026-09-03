@@ -1,6 +1,6 @@
 # Agent Runtime
 
-Stage 7 是一次性的 `Plan → Validate → Execute → Synthesize`。Stage 8 在不改变计划结构和 Tool allowlist 的前提下增加受限观察与单步修复：`Execute → Observe → Classify → Repair → Re-validate → Retry once`。
+DataPilot uses `Plan → Validate → Execute → Synthesize` with bounded observation and single-step repair: `Execute → Observe → Classify → Repair → Re-validate → Retry once`.
 
 ```mermaid
 flowchart TD
