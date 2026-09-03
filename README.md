@@ -1,5 +1,7 @@
 # DataPilot
 
+[![CI](https://github.com/tangwencan666/DataPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/tangwencan666/DataPilot/actions/workflows/ci.yml)
+
 AI-powered data analysis agent platform with safe SQL, structured analysis, visualization, and evidence-backed reporting.
 
 DataPilot turns uploaded CSV/XLSX datasets into inspectable analysis workflows. Users can profile data, run controlled analyses, build charts, or ask a higher-level question. The planner produces a bounded structured plan; the application validates and executes each step through an allowlisted tool, records observations and controlled repairs, then synthesizes a response and evidence-backed report.
