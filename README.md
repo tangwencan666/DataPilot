@@ -133,6 +133,24 @@ Generate charts from structured chart specifications.
 
 ![DataPilot structured visualization](docs/screenshots/07-chart-gallery.png)
 
+### AI Analyst
+
+Generate a bounded plan and evidence-backed synthesis for a higher-level question.
+
+![DataPilot AI Analyst](docs/screenshots/08-ai-analyst.png)
+
+### Agent Execution
+
+Inspect validated tool steps, dependencies, observations, and timing.
+
+![DataPilot agent execution](docs/screenshots/09-agent-execution.png)
+
+### Report Viewer
+
+Review a structured report grounded in query and chart artifacts.
+
+![DataPilot report viewer](docs/screenshots/10-report-viewer.png)
+
 See the [screenshot inventory](docs/screenshots/README.md) for the complete capture status.
 
 ## Technology stack
