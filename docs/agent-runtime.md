@@ -1,5 +1,9 @@
 # Agent Runtime
 
+## Provider compatibility
+
+OpenAI-compatible providers use Chat Completions structured JSON Schema where supported. DeepSeek structured-output requests are routed through its Responses API `text.format` JSON Schema interface, while ordinary requests retain the Chat Completions path. Parsed results remain validated by the existing Pydantic schemas, and provider errors are sanitized.
+
 DataPilot uses `Plan → Validate → Execute → Synthesize` with bounded observation and single-step repair: `Execute → Observe → Classify → Repair → Re-validate → Retry once`.
 
 ```mermaid

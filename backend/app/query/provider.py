@@ -1,5 +1,6 @@
 import json
 from typing import Protocol
+from urllib.parse import urlparse
 
 import openai
 from openai import OpenAI
@@ -38,68 +39,85 @@ class OpenAICompatibleProvider:
     def is_configured(self) -> bool:
         return bool(self.settings.llm_api_key and self.settings.llm_model)
 
+    @property
+    def _uses_responses_structured_output(self) -> bool:
+        hostname = (urlparse(self.settings.llm_base_url).hostname or "").lower()
+        return hostname == "api.deepseek.com" or hostname.endswith(".deepseek.com")
+
+    def _client(self, timeout_seconds: float | None = None) -> OpenAI:
+        return OpenAI(
+            api_key=self.settings.llm_api_key,
+            base_url=self.settings.llm_base_url,
+            timeout=timeout_seconds or self.settings.agent_timeout_seconds,
+        )
+
+    @staticmethod
+    def _provider_error(exc: openai.OpenAIError, operation: str) -> LLMProviderError:
+        if isinstance(exc, (openai.AuthenticationError, openai.PermissionDeniedError)):
+            error = LLMProviderError("LLM authentication failed.")
+            error.code = "LLM_AUTH_ERROR"
+        elif isinstance(exc, openai.RateLimitError):
+            error = LLMProviderError("LLM rate limit exceeded.")
+            error.code = "LLM_RATE_LIMIT"
+        elif isinstance(exc, openai.APITimeoutError):
+            error = LLMProviderError("LLM request timed out.")
+            error.code = "LLM_TIMEOUT"
+        elif isinstance(exc, openai.APIConnectionError):
+            error = LLMProviderError("LLM provider connection failed.")
+            error.code = "LLM_NETWORK_ERROR"
+        elif isinstance(exc, openai.BadRequestError):
+            error = LLMProviderError("LLM provider rejected the structured request.")
+            error.code = "LLM_PROVIDER_COMPATIBILITY_ERROR"
+        else:
+            error = LLMProviderError(f"LLM {operation} failed.")
+            error.code = "LLM_PROVIDER_ERROR"
+        return error
+
     def generate_sql(self, question: str, schema_context: dict) -> SQLGenerationResult:
         if not self.settings.llm_api_key or not self.settings.llm_model:
             raise LLMNotConfiguredError("Natural Language Query requires an LLM provider configuration.")
-        try:
-            client = OpenAI(
-                api_key=self.settings.llm_api_key, base_url=self.settings.llm_base_url, timeout=self.settings.query_timeout_seconds
-            )
-            response = client.chat.completions.create(
-                model=self.settings.llm_model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": f"Schema context:\n{json.dumps(schema_context, ensure_ascii=False)}\n\nUser question:\n{question}",
-                    },
-                ],
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {"name": "sql_generation_result", "strict": True, "schema": SQLGenerationResult.model_json_schema()},
-                },
-            )
-            content = response.choices[0].message.content
-            if not content:
-                raise LLMInvalidResponseError("LLM returned no structured SQL result.")
-            return SQLGenerationResult.model_validate_json(content)
-        except LLMInvalidResponseError:
-            raise
-        except (ValidationError, json.JSONDecodeError) as exc:
-            raise LLMInvalidResponseError("LLM returned an invalid structured response.") from exc
-        except openai.AuthenticationError as exc:
-            error = LLMProviderError("LLM authentication failed.")
-            error.code = "LLM_AUTH_ERROR"
-            raise error from exc
-        except openai.RateLimitError as exc:
-            error = LLMProviderError("LLM rate limit exceeded.")
-            error.code = "LLM_RATE_LIMIT"
-            raise error from exc
-        except openai.APITimeoutError as exc:
-            error = LLMProviderError("LLM request timed out.")
-            error.code = "LLM_TIMEOUT"
-            raise error from exc
-        except openai.OpenAIError as exc:
-            raise LLMProviderError("LLM SQL generation failed.") from exc
+        return self._structured(
+            SYSTEM_PROMPT,
+            f"Schema context:\n{json.dumps(schema_context, ensure_ascii=False)}\n\nUser question:\n{question}",
+            SQLGenerationResult,
+            "sql_generation_result",
+            self.settings.query_timeout_seconds,
+            "SQL generation",
+        )
 
-    def _structured(self, system: str, user: str, schema_type, type_name: str, timeout_seconds: float | None = None):
+    def _structured(
+        self,
+        system: str,
+        user: str,
+        schema_type,
+        type_name: str,
+        timeout_seconds: float | None = None,
+        operation: str = "structured generation",
+    ):
         if not self.settings.llm_api_key or not self.settings.llm_model:
             raise LLMNotConfiguredError("Agent requires an LLM provider configuration.")
         try:
-            client = OpenAI(
-                api_key=self.settings.llm_api_key,
-                base_url=self.settings.llm_base_url,
-                timeout=timeout_seconds or self.settings.agent_timeout_seconds,
-            )
-            response = client.chat.completions.create(
-                model=self.settings.llm_model,
-                messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {"name": type_name, "strict": True, "schema": schema_type.model_json_schema()},
-                },
-            )
-            content = response.choices[0].message.content
+            client = self._client(timeout_seconds)
+            messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+            schema = schema_type.model_json_schema()
+            if self._uses_responses_structured_output:
+                response = client.responses.create(
+                    model=self.settings.llm_model,
+                    input=messages,
+                    text={"format": {"type": "json_schema", "name": type_name, "schema": schema}},
+                    reasoning={"effort": "low"},
+                )
+                content = response.output_text
+            else:
+                response = client.chat.completions.create(
+                    model=self.settings.llm_model,
+                    messages=messages,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {"name": type_name, "strict": True, "schema": schema},
+                    },
+                )
+                content = response.choices[0].message.content
             if not content:
                 raise LLMInvalidResponseError("LLM returned no structured Agent response.")
             return schema_type.model_validate_json(content)
@@ -107,10 +125,8 @@ class OpenAICompatibleProvider:
             raise
         except (ValidationError, json.JSONDecodeError) as exc:
             raise LLMInvalidResponseError("LLM returned an invalid structured Agent response.") from exc
-        except openai.APITimeoutError as exc:
-            raise LLMProviderError("Agent LLM request timed out.") from exc
         except openai.OpenAIError as exc:
-            raise LLMProviderError("Agent LLM request failed.") from exc
+            raise self._provider_error(exc, operation) from exc
 
     def generate_plan(self, question: str, agent_context: dict) -> AgentPlan:
         return self._structured(
