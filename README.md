@@ -103,7 +103,37 @@ The synthetic, PII-free [sales dataset](demo/sales_demo.csv) contains `date`, `r
 
 ## Screenshots
 
-Screenshots will be added from the verified 1.0.0 UI. Until then, the [screenshot checklist](docs/screenshots/README.md) documents the real views to capture; no generated UI images or broken screenshot links are included.
+### Dataset Preview
+
+Inspect uploaded datasets before analysis.
+
+![DataPilot dataset preview](docs/screenshots/03-dataset-detail.png)
+
+### Automated Data Profiling
+
+Profile schema, semantic types, quality metrics, and statistics.
+
+![DataPilot data profiling](docs/screenshots/04-profile-overview.png)
+
+### Column Statistics
+
+Explore typed column-level distributions and descriptive statistics.
+
+![DataPilot column statistics](docs/screenshots/05-profile-columns.png)
+
+### Structured Analysis
+
+Run controlled analytical operations without arbitrary Python execution.
+
+![DataPilot structured analysis](docs/screenshots/06-analysis-lab.png)
+
+### Visualization
+
+Generate charts from structured chart specifications.
+
+![DataPilot structured visualization](docs/screenshots/07-chart-gallery.png)
+
+See the [screenshot inventory](docs/screenshots/README.md) for the complete capture status.
 
 ## Technology stack
 
