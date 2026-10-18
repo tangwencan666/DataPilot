@@ -1,242 +1,112 @@
 # DataPilot
 
-[![CI](https://github.com/tangwencan666/DataPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/tangwencan666/DataPilot/actions/workflows/ci.yml)
+面向 CSV/XLSX 数据探索的 AI Agent 分析平台。用户上传数据后，可查看质量画像、执行受控查询与分析、生成图表，并将有界 Agent 的执行结果整理为带证据引用的报告。
 
-AI-powered data analysis agent platform with safe SQL, structured analysis, visualization, and evidence-backed reporting.
+**工程定位：可追溯的单 Agent 工作流。** 模型提出结构化计划，应用负责授权、校验、执行与证据约束；没有已实施的 Multi-Agent、RAG 或分布式任务队列。
 
-DataPilot turns uploaded CSV/XLSX datasets into inspectable analysis workflows. Users can profile data, run controlled analyses, build charts, or ask a higher-level question. The planner produces a bounded structured plan; the application validates and executes each step through an allowlisted tool, records observations and controlled repairs, then synthesizes a response and evidence-backed report.
+## 1. 项目简介
 
-> Version 1.0.0 · verified against PostgreSQL 16.15 and the real Docker Compose stack. LLM-backed flows require optional provider configuration.
+项目将“自然语言问题 → 结构化计划 → SQL/Analysis/Chart 工具 → 观察与受限修复 → 报告”串联起来，避免直接执行模型生成的 Python 或前端 JavaScript。
 
-## Key features
+本地候选版本保留报告归属修复：读取、两种导出和删除均先验证当前用户拥有父数据集，再查询报告。2026-10-18 本地验收：306 项后端测试通过；远程旧版本尚未包含这两行修复，发布之前不应将其作为安全部署版本。
 
-- Dataset upload, preview, ownership, quotas, and cleanup
-- Deterministic profiling, semantic types, correlations, and data-quality findings
-- Natural-language SQL with SQL transparency and query history
-- `sqlglot` AST validation and bounded read-only DuckDB execution
-- Controlled analysis DSL for aggregation, statistics, time series, and derived columns
-- Structured visualization DSL and server-built safe ECharts options
-- Bounded planner, validated dependency DAG, tool registry, and execution trace
-- Structured observation, deterministic failure classification, and controlled repair
-- Evidence-referenced insights and escaped Markdown/HTML reports
-- JWT authentication, owner-scoped resources, rate limiting, request IDs, and metrics
-- Docker Compose, Alembic migrations, CI, and automated tests
+## 2. 技术栈
 
-## Architecture
+| 层 | 已使用技术 |
+| --- | --- |
+| 后端 | Python、FastAPI、Pydantic、SQLAlchemy、Alembic |
+| 分析与 AI | DuckDB、pandas、NumPy、sqlglot、OpenAI-compatible Provider、自建有界 Agent |
+| 存储 | PostgreSQL 元数据、本地受管上传目录 |
+| 前端 | React、TypeScript、Vite、ECharts、Nginx |
+| 工程 | Docker Compose、GitHub Actions、pytest、Vitest、Ruff、ESLint |
+
+## 3. 系统架构
 
 ```mermaid
 flowchart TD
-    U[User] --> UI[React UI / Nginx]
-    UI --> API[FastAPI API]
-    API --> AUTH[JWT Auth and Dataset Ownership]
-    AUTH --> CTX[Bounded Dataset and Profile Context]
-    CTX --> PLAN[Planner: Structured AgentPlan]
-    PLAN --> VALIDATE[DAG, Schema and Tool Validation]
-    VALIDATE --> REG[Tool Registry]
-    REG --> SQL[SQL Tool: sqlglot and DuckDB]
-    REG --> ANALYSIS[Analysis Tool: DSL and Worker]
-    REG --> CHART[Chart Tool: DSL and Safe ECharts]
-    SQL --> OBS[Bounded Observation]
-    ANALYSIS --> OBS
-    CHART --> OBS
-    OBS --> REPAIR[Deterministic Policy and Optional Repair]
-    REPAIR --> SYNTH[Structured Synthesis]
-    SYNTH --> EVIDENCE[Validated Evidence]
-    EVIDENCE --> REPORT[Escaped Report]
-    API --> PG[(PostgreSQL Metadata)]
-    API --> FILES[(Managed Upload Storage)]
+  UI["React / Nginx"] --> API["FastAPI / JWT 与资源归属"]
+  API --> PLAN["结构化计划 / DAG 校验"]
+  PLAN --> PROVIDER["LLM Provider"]
+  PLAN --> TOOLS["SQL / Analysis / Chart Registry"]
+  TOOLS --> SQL["sqlglot + 只读 DuckDB"]
+  TOOLS --> WORKER["受控 pandas DSL 子进程"]
+  TOOLS --> CHART["ChartSpec / 安全 ECharts 配置"]
+  TOOLS --> OBS["有界观察 / 同工具修复"]
+  OBS --> REPORT["证据校验 / 转义报告"]
+  API --> PG[("PostgreSQL 元数据")]
+  SQL --> FILES[("受管 CSV / XLSX 文件")]
+  WORKER --> FILES
 ```
 
-The LLM proposes structured data; it is not treated as a security boundary. The application owns validation, authorization, resource limits, execution, evidence checks, and rendering. See [Architecture](docs/architecture.md), [Security](docs/security.md), and [Threat Model](docs/threat-model.md).
+DuckDB 查询上传数据，PostgreSQL 保存元数据和执行记录。分析 Worker 是子进程，不是 OS 或 Docker 安全沙箱。
 
-## Safety architecture
+## 4. 核心功能
 
-| Boundary | Controls |
-|---|---|
-| SQL | `sqlglot` validates one read-only SELECT/CTE against the logical `dataset` table. External readers, destructive statements, extensions, and unsafe commands are rejected. DuckDB enforces row, cell, SQL-length, and timeout limits. |
-| Analysis | A Pydantic operation DSL replaces source code. A spawned worker executes allowlisted pandas operations under row/result/operation/time limits. There is no `exec`, `eval`, arbitrary import, expression, or file-path input. |
-| Charts | A strict `ChartSpec` controls aggregation and presentation. The server builds ECharts options; raw JavaScript, callbacks, formatter functions, custom renderers, and raw options are rejected. |
-| Agent | Plans have a default eight-step maximum, tool allowlist, prior-step dependencies, and DAG/schema/column validation. Repair cannot change tool or topology; default budgets are one repair per step and three per run. There is no unlimited ReAct loop. |
-| Reports | Only bounded snapshots become evidence. Findings reference known evidence IDs; fixed templates escape content and never accept model-generated HTML or JavaScript. |
-| Platform | Argon2 password hashes, short-lived JWTs, owner-scoped dataset resources, quotas, process-local rate limits, request IDs, security headers, and sanitized errors. |
+| 能力 | 源码入口 |
+| --- | --- |
+| 上传、预览、数据归属、配额和质量画像 | [services.py](backend/app/services.py)、[profiling](backend/app/profiling/) |
+| 只读 SQL 与受控分析 | [query](backend/app/query/)、[analysis](backend/app/analysis/) |
+| 图表规格校验与 ECharts 配置构造 | [charts](backend/app/charts/) |
+| 有界计划、观察、修复与执行轨迹 | [agents](backend/app/agents/) |
+| 证据引用报告与 Markdown/HTML 导出 | [reports](backend/app/reports/) |
 
-These controls reduce application-level risk; they are not an OS sandbox, malware scanner, or enterprise multi-tenant isolation boundary.
+## 5. 关键工程实现与源码位置
 
-## Quick start
+- **已知资源 ID 也不能绕过归属。** [ReportService.get](backend/app/reports/service.py) 先通过 owner-scoped DatasetRepository 验证父资源；读取、导出和删除复用同一检查。[权限回归](backend/tests/test_resource_authorization.py) 覆盖用户 A/B、已知 ID、父数据集替换、未登录和正常流程。隔离副本撤去两行修复后，四个攻击用例全部失败；恢复后完整测试通过。
+- **LLM 输出不是执行权限。** [SQLValidator](backend/app/query/validator.py) 限制单条只读查询与逻辑 dataset 表；分析使用 Pydantic DSL 和有界子进程，图表由服务端生成配置。SQL AST 校验没有字段级授权 Schema，列存在性仍由执行层检查。
+- **计划错误需要有界恢复。** [AgentRuntime](backend/app/agents/runtime.py) 使用工具 allowlist、依赖 DAG、步数、时间和修复预算；修复不能改变工具或拓扑。最终报告只接受已知证据 ID，并对输出转义。
 
-Prerequisite: Docker Desktop, or Docker Engine with Compose v2.
+## 6. 本地部署教程
+
+需要 Docker Engine/Desktop 与 Compose v2，首次构建需要下载依赖。开发与测试应使用独立数据卷，不复用生产数据。
 
 ```powershell
-git clone <your-repository-url>
-Set-Location <repository-directory>
+git clone https://github.com/tangwencan666/DataPilot.git
+cd DataPilot
 Copy-Item .env.example .env
-```
-
-Replace at least `SECRET_KEY` and `POSTGRES_PASSWORD` in `.env`, then run:
-
-```powershell
+# 在本机私有 .env 中设置独立随机 SECRET_KEY、POSTGRES_PASSWORD；保持 AUTH_REQUIRED=true
+docker compose config --quiet
 docker compose up --build
 ```
 
-Open `http://localhost`, register an account, and upload [demo/sales_demo.csv](demo/sales_demo.csv). OpenAPI is at `http://localhost:8000/docs`; readiness and metrics are `/ready` and `/metrics`.
+打开 `http://localhost` 注册账号，上传 [演示数据](demo/sales_demo.csv)。OpenAPI 为 `http://localhost:8000/docs`，就绪接口 `/ready`，指标 `/metrics`。端口冲突时配置 `POSTGRES_PORT`、`BACKEND_PORT`、`FRONTEND_PORT`，不要停止未知服务。
 
-If host port 5432 is occupied, set `POSTGRES_PORT=55432` (or another free port) in `.env`. The backend still connects inside Compose on port 5432. Stop without deleting persisted data with `docker compose down`.
+没有 LLM Key 时，上传、画像、受控分析和图表仍可使用；自然语言 SQL、规划和报告生成会明确报未配置。真实模型需服务端设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`，Key 不进入前端。停止可用 `docker compose down`，不添加删除卷参数。
 
-## Optional LLM configuration
+本地候选补丁尚未提交，远程旧版本不含报告权限修复。部署修复前应先应用候选补丁并完成自己环境的验证。
 
-The application starts without an LLM key. Dataset upload, preview, profiling, data quality, structured analysis, and charts remain available. To enable natural-language SQL, planner/repair/synthesis, and report insight generation, set:
+## 7. 真实运行截图
 
-```dotenv
-LLM_API_KEY=<your-provider-key>
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=<structured-output-capable-model>
-```
+以下复用仓库已有运行截图，本轮没有重新运行真实模型或生成界面。
 
-Keys remain server-side. Missing configuration produces explicit API errors rather than mock results or paid calls.
+![数据画像](docs/screenshots/04-profile-overview.png)
 
-## Demo
+![AI Analyst 执行](docs/screenshots/08-ai-analyst.png)
 
-The synthetic, PII-free [sales dataset](demo/sales_demo.csv) contains `date`, `region`, `product`, `category`, `sales`, `quantity`, and `profit`.
+[完整截图与来源](docs/screenshots/README.md) · [演示步骤](docs/demo-guide.md)。截图文档记录后续真实 DeepSeek 演示；1.0.0 发布时未做真实模型 smoke，两者属于不同时间点。
 
-- Follow the [5–8 minute demo guide](docs/demo-guide.md).
-- Use the prepared [demo questions](demo/demo_questions.md).
-
-## Screenshots
-
-### Dataset Preview
-
-Inspect uploaded datasets before analysis.
-
-![DataPilot dataset preview](docs/screenshots/03-dataset-detail.png)
-
-### Automated Data Profiling
-
-Profile schema, semantic types, quality metrics, and statistics.
-
-![DataPilot data profiling](docs/screenshots/04-profile-overview.png)
-
-### Column Statistics
-
-Explore typed column-level distributions and descriptive statistics.
-
-![DataPilot column statistics](docs/screenshots/05-profile-columns.png)
-
-### Structured Analysis
-
-Run controlled analytical operations without arbitrary Python execution.
-
-![DataPilot structured analysis](docs/screenshots/06-analysis-lab.png)
-
-### Visualization
-
-Generate charts from structured chart specifications.
-
-![DataPilot structured visualization](docs/screenshots/07-chart-gallery.png)
-
-### AI Analyst
-
-Generate a bounded plan and evidence-backed synthesis for a higher-level question.
-
-![DataPilot AI Analyst](docs/screenshots/08-ai-analyst.png)
-
-### Agent Execution
-
-Inspect validated tool steps, dependencies, observations, and timing.
-
-![DataPilot agent execution](docs/screenshots/09-agent-execution.png)
-
-### Report Viewer
-
-Review a structured report grounded in query and chart artifacts.
-
-![DataPilot report viewer](docs/screenshots/10-report-viewer.png)
-
-See the [screenshot inventory](docs/screenshots/README.md) for the complete capture status.
-
-## Technology stack
-
-| Area | Technology |
-|---|---|
-| Frontend | React, TypeScript, Vite, ECharts, Nginx |
-| Backend | FastAPI, Pydantic, SQLAlchemy, Alembic |
-| Database | PostgreSQL 16 |
-| Analytics | DuckDB, pandas, NumPy, `sqlglot` |
-| Agent | Structured plans, tool registry, bounded observation and repair |
-| Infrastructure | Docker Compose, managed upload volume, GitHub Actions |
-| Testing | pytest, Vitest, Testing Library, Ruff, ESLint |
-
-## Project structure
-
-```text
-backend/             FastAPI application, migrations, and tests
-frontend/            React application and frontend tests
-docs/                Architecture, security, demo, and portfolio material
-demo/                Synthetic demo dataset and questions
-scripts/             Demo and migration verification utilities
-.github/workflows/   Continuous integration
-docker-compose.yml   PostgreSQL, backend, and frontend stack
-```
-
-## API overview
-
-The API is rooted at `/api/v1`. Auth endpoints register/login users; authenticated dataset endpoints provide preview/profile/query/analysis/chart/agent/report workflows. Ownership applies to all dataset child resources. See [API overview](docs/api-overview.md) or live OpenAPI at `/docs`.
-
-## Engineering verification
-
-| Check | Verified result |
-|---|---|
-| Release | 1.0.0 |
-| Backend tests | 249 passed |
-| Frontend tests | 6 passed |
-| Alembic | 9 revisions; `0001 → 0009` and round-trip verified |
-| PostgreSQL | 16.15 real-container migration and smoke verification |
-| Docker | Backend/frontend builds and full Compose flow verified |
-| Quality gates | Ruff, format check, ESLint, TypeScript, and Vite build passed |
-
-These are engineering verification results, not production traffic or performance claims. Real LLM smoke testing was skipped because no provider credential was configured.
+## 8. 测试结果与已知限制
 
 ```powershell
-Set-Location backend
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ruff check .
-.\.venv\Scripts\python.exe -m ruff format --check .
-
-Set-Location ..\frontend
-npm run lint
-npm run test
+cd backend
+python -m pytest -q
+# 专项：python -m pytest tests/test_resource_authorization.py tests/test_report_api.py -q
+cd ../frontend
+npm test
 npm run build
 ```
 
-## Current limitations
+| 验证 | 结果与范围 |
+| --- | --- |
+| 2026-10-18 独立副本本地验收 | 306 passed；内存 SQLite、测试 Provider、独立上传目录，外部连接受限 |
+| 权限失败对照 | 仅撤去隔离副本两行修复，四个跨用户读取/导出/删除用例失败；测试断言未改 |
+| 历史公开 CI，Commit 18bd1d7 | 后端 254、前端 7 通过；不能替代本地新补丁的远程 CI |
+| PostgreSQL Compose / 真实模型 | 历史记录保留；本轮未重跑 |
 
-- LLM-backed release smoke was not performed without external credentials.
-- Rate limiting is in-memory and not shared across replicas.
-- Uploads use a local managed volume; long-running work has no distributed queue.
-- The analysis worker has process isolation and time limits, but no OS-level memory sandbox.
-- Uploaded files are type/size/path checked but not malware-scanned.
-- The ECharts bundle remains a large lazy-loaded frontend chunk.
-- Browser JWT storage uses localStorage; internet-facing deployments should evaluate secure HttpOnly cookies.
+限流仍是进程内状态；没有分布式队列和 OS 级内存沙箱；上传文件未做恶意软件扫描。浏览器 JWT 使用 localStorage，现有权限控制不等于企业级租户隔离。依赖锁定不代表完成全部漏洞与供应链审计。
 
-## Roadmap
+[阶段 B 历史记录](docs/PORTFOLIO_VERIFICATION.md) · [安全边界](docs/security.md) · [Threat Model](docs/threat-model.md) · [历史 README](docs/history/README.before-portfolio-20261018.md)
 
-- Redis-backed rate limiting and an asynchronous job queue
-- Object storage and lifecycle management
-- Container or microVM execution isolation
-- Distributed tracing and centralized telemetry
-- Optional PDF report export
+项目源码采用 [MIT License](LICENSE)，第三方依赖保留各自许可证。
 
-No delivery dates are implied. The implementation remains a bounded single-agent workflow, not a multi-agent system.
-
-## Documentation
-
-- [Architecture](docs/architecture.md) · [Agent runtime](docs/agent-runtime.md)
-- [Security](docs/security.md) · [Threat model](docs/threat-model.md)
-- [API overview](docs/api-overview.md) · [Demo guide](docs/demo-guide.md)
-- [Graduation defense](docs/graduation-defense.md) · [Interview guide](docs/interview-guide.md)
-- [Resume material](docs/resume-project.md) · [Project highlights](docs/project-highlights.md)
-- [Graduation summary](docs/graduation-summary.md) · [Release notes](docs/release-notes-1.0.0.md)
-- [Changelog](CHANGELOG.md)
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+[本地验收记录](docs/LOCAL_ACCEPTANCE.md) · [测试证据及版本索引](docs/TEST_EVIDENCE.md)

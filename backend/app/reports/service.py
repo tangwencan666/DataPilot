@@ -139,6 +139,8 @@ class ReportService:
         return self.reports.list(dataset_id, page, page_size)
 
     def get(self, dataset_id, report_id):
+        if not self.datasets.get_by_id(dataset_id):
+            raise ReportSourceNotFound("Dataset not found.")
         x = self.reports.get(dataset_id, report_id)
         if not x:
             raise ReportNotFound("Report not found.")
