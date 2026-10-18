@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-18",
+  "real_model_requests": 0,
+  "remote_mutations": 0,
+  "original_services_started_or_restarted": false,
+  "current": {
+    "artifact": "datapilot-full-v2.xml",
+    "sha256": "5d4910de6996f89cc104cadb91dfaed90871ee2459e2be66636c5d68de561572",
+    "tests": 306,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "negative_control": {
+    "artifact": "datapilot-negative-v2.xml",
+    "sha256": "d62053d7803b196769ea72338db12d54f5a204670e64545717f9e2ee0f71b19c",
+    "tests": 4,
+    "failures": 4,
+    "errors": 0,
+    "skipped": 0
+  },
+  "negative_control_expected_failure": true,
+  "database": "in-memory SQLite and isolated temporary uploads",
+  "model": "test Provider; no live model"
+}
